@@ -1,46 +1,57 @@
+# app.py
 import streamlit as st
 
-# Set page configuration
-st.set_page_config(page_title="Flow Regime App", layout="wide")
+# --- Page config ---
+st.set_page_config(
+    page_title="Flow Regime Visual Twin",
+    page_icon="🌊",
+    layout="wide"
+)
 
-# Sidebar with tabs
-st.sidebar.title("Navigation")
-tab = st.sidebar.radio("Go to", ["About Flow Regime", "Classify", "Visualize the Flow Regime"])
+# --- Sidebar ---
+st.sidebar.title("🌟 Navigation")
+st.sidebar.markdown("---")
+page = st.sidebar.radio(
+    "Select Page",
+    ["Home", "Classify Flow Regime", "How to use ", "Example 3"]
+)
 
-# --- About Flow Regime Tab ---
-if tab == "About Flow Regime":
-    st.title("About Flow Regime")
+# --- Home Page ---
+if page == "Home":
+    st.title("Multiphase Flow Regime Dashboard")
     st.markdown("""
-    Flow regimes describe the distribution of phases (gas, liquid) in multiphase flow systems.
-    They are critical for designing pipelines and ensuring safe and efficient operation.
-    
-    Common flow regimes include:
-    - **Dispersed Bubble Flow**
-    - **Slug Flow**
-    - **Stratified Flow**
-    - **Annular Flow**
+    This dashboard provides insights into multiphase flow regimes and their impact on engineering systems.
     """)
     
-# --- Classify Tab ---
-elif tab == "Classify":
-    st.title("Classify Flow Regime")
-    st.markdown("Upload your sensor data or video to classify the flow regime.")
+    # --- Section 1: About Multiphase Flow Regime ---
+    st.subheader("1️⃣ About Multiphase Flow Regime")
+    st.markdown("""
+    Multiphase flow refers to the simultaneous flow of materials with different phases (gas, liquid, and/or solid) 
+    within pipelines or process systems. Understanding the flow regime (such as bubbly, slug, annular, or dispersed flows) is critical because it affects pressure drop, heat transfer, and mass transport efficiency. Flow regimes are typically visualized using velocity, volume fraction, or imaging techniques.
+    """)
 
-    uploaded_file = st.file_uploader("Upload file", type=["csv", "mp4"])
-    
-    if uploaded_file is not None:
-        st.success(f"File {uploaded_file.name} uploaded successfully!")
-        # Placeholder for classification result
-        st.info("Classification result will appear here.")
+    # --- Section 2: Impact of Flow Regimes in Multiphase Systems ---
+    st.subheader("2️⃣ Impact of Flow Regimes in Multiphase Systems")
+    st.markdown("""
+    Different flow regimes have a significant impact on system performance and safety:
+    - **Pressure Drop:** Certain regimes (like slug flow) can cause large fluctuations in pressure.
+    - **Separation Efficiency:** Flow regime affects the performance of separators and separators.
+    - **Equipment Design:** Correct prediction of flow regime is essential for pumps, pipelines, and reactors.
+    - **Operational Safety:** Unstable flow regimes can lead to erosion, vibration, and operational hazards.
+    """)
 
-# --- Visualize Flow Regime Tab ---
-elif tab == "Visualize the Flow Regime":
-    st.title("Visualize Flow Regime")
-    st.markdown("Visualize the flow regime from sensor data or video.")
+    # --- Image ---
+    st.image("assets/flow-regime.png", caption="Common Multiphase Flow Regimes", width=400)
+
+# --- Example Tabs ---
+elif page == "Example 1":
+    st.title("Example 1: Analytics")
+    st.markdown("This section can contain charts, metrics, or tables.")
     
-    uploaded_file_viz = st.file_uploader("Upload file for visualization", type=["csv", "mp4"], key="viz")
-    
-    if uploaded_file_viz is not None:
-        st.success(f"File {uploaded_file_viz.name} uploaded successfully!")
-        # Placeholder for visualization
-        st.info("Visualization will appear here.")
+elif page == "Example 2":
+    st.title("Example 2: Model Prediction")
+    st.markdown("This section can have input forms, sliders, or model results.")
+
+elif page == "Example 3":
+    st.title("Example 3: Data Exploration")
+    st.markdown("This section can have interactive data visualizations.")
