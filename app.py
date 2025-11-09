@@ -21,7 +21,7 @@ with tab1:
     3. Follow on-screen instructions and explore your data.
     """)
     st.image(
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Water_flowing_in_a_river.jpg/320px-Water_flowing_in_a_river.jpg",
+        "./assets/flow-regime.png",
         caption="Flow Visualization Example"
     )
 
