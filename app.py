@@ -1,63 +1,43 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
 
-# Set page config
+# Page config
 st.set_page_config(page_title="Flow Regime Visualizer", layout="wide")
 
 # App title
 st.title("Flow Regime Visualizer 🌊")
 
-# Create tabs
-tabs = st.tabs(["How to Use", "Classify Flow Regime", "Visualization"])
+# Tabs
+tab1, tab2, tab3 = st.tabs(["How to Use", "Classify Flow Regime", "Visualization"])
 
 # -------------------------------
 # Tab 1: How to Use
 # -------------------------------
-with tabs[0]:
-    st.header("How to Use This Application")
+with tab1:
+    st.header("How to Use This App")
     st.markdown("""
-    1. Go to the **Classify Flow Regime** tab to upload your data and classify the flow regime.
-    2. Go to the **Visualization** tab to see visual representations of the flow.
-    3. Follow on-screen instructions and explore different datasets.
+    1. Go to **Classify Flow Regime** tab to upload your dataset and classify the flow regime.
+    2. Go to **Visualization** tab to explore visual insights of the flow data.
+    3. Follow on-screen instructions and explore your data.
     """)
-    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Water_flowing_in_a_river.jpg/320px-Water_flowing_in_a_river.jpg", caption="Flow Visualization Example")
+    st.image(
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Water_flowing_in_a_river.jpg/320px-Water_flowing_in_a_river.jpg",
+        caption="Flow Visualization Example"
+    )
 
 # -------------------------------
 # Tab 2: Classify Flow Regime
 # -------------------------------
-with tabs[1]:
+with tab2:
     st.header("Classify Flow Regime")
     
-    uploaded_file = st.file_uploader("Upload your data file (CSV)", type=["csv"])
+    uploaded_file = st.file_uploader("Upload CSV data", type=["csv"])
     
     if uploaded_file:
         df = pd.read_csv(uploaded_file)
-        st.write("Preview of uploaded data:")
+        st.subheader("Preview of Uploaded Data")
         st.dataframe(df.head())
         
-        # Placeholder classification
-        if st.button("Classify Flow Regime"):
-            # Here you would call your ML model
+        if st.button("Classify Flow"):
+            # Placeholder for ML model
             st.success("Flow regime classified as: **Slug Flow**")  # Example output
-
-# -------------------------------
-# Tab 3: Visualization
-# -------------------------------
-with tabs[2]:
-    st.header("Visualization of Flow")
-    
-    st.markdown("Example: Random pressure signal plot")
-    
-    # Example random data
-    x = np.linspace(0, 10, 500)
-    y = np.sin(x) + 0.1 * np.random.randn(500)
-    
-    fig, ax = plt.subplots()
-    ax.plot(x, y)
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Pressure (Pa)")
-    ax.set_title("Pressure Signal")
-    
-    st.pyplot(fig)
