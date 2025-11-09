@@ -38,4 +38,3 @@ watchdog==6.0.0
 matplotlib
 pandas
 numpy
-plotly
