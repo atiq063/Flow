@@ -2,12 +2,14 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
+import streamlit.components.v1 as components
 import torch
 import torch.nn as nn
 from scipy.fft import fft, fftfreq
 from sklearn.preprocessing import StandardScaler, RobustScaler
 import pickle
 import os
+import base64
 
 # --- Page Config ---
 st.set_page_config(
@@ -21,7 +23,81 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 CLASS_NAMES = ["Dispersed Flow", "Plug Flow", "Slug Flow"]
 
 # --- Model Definition ---
-
+# --- Model Definition ---
+class MultiTaskPINN(nn.Module):
+    def __init__(self, input_size=40, hidden_size=128, num_classes=3):
+        super(MultiTaskPINN, self).__init__()
+        
+        self.conv1 = nn.Conv1d(1, 32, kernel_size=5, padding=2)
+        self.bn1 = nn.BatchNorm1d(32)
+        self.conv2 = nn.Conv1d(32, 64, kernel_size=5, padding=2)
+        self.bn2 = nn.BatchNorm1d(64)
+        self.pool = nn.MaxPool1d(2)
+        self.dropout = nn.Dropout(0.4)
+        
+        self.fc_features = nn.Sequential(
+            nn.Linear(8, 64),
+            nn.ReLU(),
+            nn.Dropout(0.4)
+        )
+        
+        self.fc_velocities = nn.Sequential(
+            nn.Linear(2, 32),
+            nn.ReLU(),
+            nn.Dropout(0.4)
+        )
+        
+        conv_output_size = 64 * (WINDOW_SIZE // 2)
+        combined_size = conv_output_size + 64 + 32
+        
+        self.shared_layer = nn.Sequential(
+            nn.Linear(combined_size, hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.4)
+        )
+        
+        self.classifier = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size // 2),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(hidden_size // 2, num_classes)
+        )
+        
+        self.velocity_regressor = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size // 2),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(hidden_size // 2, 32),
+            nn.ReLU(),
+            nn.Linear(32, 2)
+        )
+        
+        self.physics_net = nn.Sequential(
+            nn.Linear(hidden_size, 64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, 1)
+        )
+    
+    def forward(self, pressure_window, features, velocities):
+        x = pressure_window.unsqueeze(1)
+        x = torch.relu(self.bn1(self.conv1(x)))
+        x = self.pool(x)
+        x = torch.relu(self.bn2(self.conv2(x)))
+        x = self.dropout(x)
+        x = x.view(x.size(0), -1)
+        
+        feat = self.fc_features(features)
+        vel = self.fc_velocities(velocities)
+        
+        combined = torch.cat([x, feat, vel], dim=1)
+        shared_repr = self.shared_layer(combined)
+        
+        class_output = self.classifier(shared_repr)
+        velocity_output = self.velocity_regressor(shared_repr)
+        physics_output = self.physics_net(shared_repr)
+        
+        return class_output, velocity_output, physics_output
 # --- Helper Functions ---
 @st.cache_resource
 def load_model_and_scalers():
@@ -45,7 +121,6 @@ def load_model_and_scalers():
                 scalers_path = "training_scalers.pkl"
                 with open(scalers_path, 'rb') as f:
                     scalers = pickle.load(f)
-                st.success("✅ Scalers loaded from training_scalers.pkl")
             except FileNotFoundError:
                 st.error("❌ Scalers file not found at: training_scalers.pkl")
                 return model, None
@@ -172,6 +247,26 @@ def predict_flow_regime(model, scalers, pressure_data, vsg=0.5, vsl=0.5):
         st.exception(e)
         return None
 
+def render_media_card(media_path, caption):
+    """Render an image or GIF inside a styled card."""
+    try:
+        with open(media_path, "rb") as f:
+            media_bytes = f.read()
+        media_b64 = base64.b64encode(media_bytes).decode("ascii")
+        extension = os.path.splitext(media_path)[1].lower()
+        mime = "image/gif" if extension == ".gif" else "image/png"
+        st.markdown(
+            f"""
+            <div class="media-card">
+                <img src="data:{mime};base64,{media_b64}" alt="{caption}">
+                <div class="media-caption">{caption}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    except Exception as e:
+        st.warning(f"⚠️ Unable to render visualization card: {str(e)}")
+
 # --- Initialize session state ---
 if "page" not in st.session_state:
     st.session_state["page"] = "Home"
@@ -179,49 +274,188 @@ if "page" not in st.session_state:
 # --- Custom CSS ---
 st.markdown("""
 <style>
+    :root {
+        --hbku-maroon: #8a1538;
+        --hbku-maroon-dark: #6f0f2c;
+        --hbku-gold: #c6a15b;
+        --hbku-sand: #f7f3ee;
+        --hbku-ink: #1f1f24;
+        --hbku-slate: #4b5563;
+        --hbku-mist: #eef0f3;
+    }
+
+    @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap');
+
+    .stApp {
+        background:
+            radial-gradient(1200px 600px at 15% -10%, rgba(198, 161, 91, 0.18), transparent 60%),
+            radial-gradient(900px 500px at 95% 10%, rgba(138, 21, 56, 0.12), transparent 55%),
+            var(--hbku-sand);
+        color: var(--hbku-ink);
+    }
+
+    html, body, [class*="css"] {
+        font-family: "Source Sans 3", "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2.5rem;
+    }
+
     [data-testid="stSidebar"] {
-        background-color: #1e2130;
+        background: linear-gradient(180deg, #ffffff 0%, #f3f4f7 100%);
+        border-right: 1px solid rgba(15, 23, 42, 0.08);
     }
-    .sidebar-button {
-        background-color: #262c3d;
+
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3 {
+        color: var(--hbku-ink);
+    }
+
+    .stMarkdown, p, li {
+        color: var(--hbku-slate);
+        font-size: 1rem;
+    }
+
+    h1, h2, h3 {
+        color: var(--hbku-ink);
+        font-family: "Crimson Pro", "Times New Roman", serif;
+        letter-spacing: 0.2px;
+    }
+
+    h1 {
+        font-size: 2.4rem;
+    }
+
+    h2 {
+        font-size: 1.8rem;
+    }
+
+    h3 {
+        font-size: 1.4rem;
+    }
+
+    .stButton > button {
+        background: linear-gradient(135deg, var(--hbku-maroon) 0%, var(--hbku-maroon-dark) 100%);
         color: #ffffff;
-        padding: 14px 20px;
-        border-radius: 8px;
-        border: 1px solid #3d4463;
-        margin-bottom: 10px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        font-weight: 500;
+        padding: 0.7rem 1.1rem;
+        border-radius: 10px;
+        border: none;
+        font-weight: 600;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 8px 18px rgba(138, 21, 56, 0.22);
+    }
+
+    .stButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 22px rgba(138, 21, 56, 0.28);
+    }
+
+    .stButton > button:focus {
+        outline: 2px solid rgba(138, 21, 56, 0.35);
+        outline-offset: 2px;
+    }
+
+    [data-testid="stSidebar"] .stButton > button {
+        background: linear-gradient(135deg, var(--hbku-maroon) 0%, var(--hbku-maroon-dark) 100%);
+        color: #ffffff;
+    }
+
+    [data-testid="stSidebar"] .stButton > button p {
+        color: #ffffff;
+        font-weight: 600;
+    }
+
+    .stButton > button * {
+        color: #ffffff !important;
+    }
+
+    .cta-card {
+        background: #ffffff;
+        border: 1px solid rgba(138, 21, 56, 0.18);
+        border-radius: 16px;
+        padding: 20px 24px;
+        box-shadow: 0 12px 20px rgba(31, 41, 55, 0.08);
+        margin: 16px 0 8px 0;
+    }
+
+    .cta-title {
+        font-family: "Crimson Pro", "Times New Roman", serif;
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: var(--hbku-maroon);
+        margin-bottom: 6px;
+    }
+
+    .cta-subtitle {
+        color: var(--hbku-slate);
+        font-size: 1rem;
+    }
+
+    .media-card {
+        background: #ffffff;
+        border: 1px solid rgba(138, 21, 56, 0.15);
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: 0 12px 20px rgba(31, 41, 55, 0.08);
+        margin: 12px auto 20px auto;
+        max-width: 640px;
+        text-align: center;
+    }
+
+    .media-card img {
         width: 100%;
-        text-align: left;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        height: auto;
+        border-radius: 12px;
     }
-    .sidebar-button:hover {
-        background-color: #2d3348;
-        border-color: #4d5578;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+
+    .media-caption {
+        color: var(--hbku-slate);
+        font-size: 0.95rem;
+        margin-top: 10px;
     }
-    [data-testid="stSidebar"] h1 {
-        color: #ffffff;
-        font-size: 1.5rem;
-        margin-bottom: 1.5rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 3px solid #6366f1;
+
+    .stFileUploader, .stTextInput, .stNumberInput, .stSelectbox {
+        background-color: #ffffff;
+        border-radius: 12px;
     }
-    .stMarkdown, p, li { color: #e0e0e0; }
-    h1, h2, h3 { color: #ffffff; }
+
+    [data-testid="stMetricValue"] {
+        color: var(--hbku-ink);
+    }
+
+    [data-testid="stMetricLabel"] {
+        color: var(--hbku-slate);
+    }
+
+    [data-testid="stMetric"] {
+        background: #ffffff;
+        border: 1px solid rgba(138, 21, 56, 0.15);
+        border-radius: 14px;
+        padding: 16px 18px;
+        box-shadow: 0 10px 18px rgba(31, 41, 55, 0.08);
+    }
+
+    .stDataFrame {
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
     .info-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 30px;
-        border-radius: 15px;
-        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-        margin: 20px 0;
-        color: white;
+        background:
+            linear-gradient(120deg, rgba(138, 21, 56, 0.95) 0%, rgba(198, 161, 91, 0.9) 100%);
+        padding: 32px;
+        border-radius: 18px;
+        box-shadow: 0 14px 28px rgba(138, 21, 56, 0.2);
+        margin: 24px 0;
+        color: #ffffff;
     }
     .card-title {
-        font-size: 32px;
-        font-weight: bold;
+        font-size: 34px;
+        font-weight: 700;
         margin-bottom: 10px;
         text-align: center;
     }
@@ -251,20 +485,55 @@ st.markdown("""
     .justified-text li {
         margin-bottom: 10px;
     }
+
+    .hbku-brand {
+        background: #ffffff;
+        border-radius: 14px;
+        padding: 18px;
+        margin-bottom: 18px;
+        border: 1px solid rgba(138, 21, 56, 0.15);
+        box-shadow: 0 10px 18px rgba(31, 41, 55, 0.08);
+    }
+
+    .hbku-brand .title {
+        font-family: "Crimson Pro", "Times New Roman", serif;
+        font-size: 1.35rem;
+        color: var(--hbku-maroon);
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .hbku-brand .subtitle {
+        font-size: 0.95rem;
+        color: var(--hbku-slate);
+    }
+
+    .stExpander {
+        border-radius: 12px;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        background: #ffffff;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # --- Sidebar Navigation ---
 with st.sidebar:
-    st.title("Navigation")
+    st.markdown("""
+    <div class="hbku-brand">
+        <div class="title">Hamad Bin Khalifa University</div>
+        <div class="subtitle">Flow Regime Visual Twin</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    if st.button("Home", use_container_width=True):
+    st.markdown("### Navigation")
+
+    if st.button("Home", width="stretch"):
         st.session_state["page"] = "Home"
-    if st.button("Evaluate Model", use_container_width=True):
-        st.session_state["page"] = "Evaluate Model"
-    if st.button("User Guideline", use_container_width=True):
+    if st.button("Classify Flow Regime", width="stretch"):
+        st.session_state["page"] = "Classify Flow Regime"
+    if st.button("User Guideline", width="stretch"):
         st.session_state["page"] = "User Guideline"
-    if st.button("Privacy and Policy", use_container_width=True):
+    if st.button("Privacy and Policy", width="stretch"):
         st.session_state["page"] = "Privacy and Policy"
 
 # --- Page Selection ---
@@ -313,7 +582,7 @@ if page == "Home":
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.image("assets/flow-regime.png", caption="Common Multiphase Flow Regimes", use_container_width=True)
+        st.image("assets/flow-regime.png", caption="Common Multiphase Flow Regimes", width="stretch")
 
     st.subheader("How the MTPINN Works")
     st.markdown("""
@@ -327,13 +596,13 @@ if page == "Home":
     
     col1, col2, col3 = st.columns([0.5, 3, 0.5])
     with col2:
-        st.image("assets/Methodoloy-Fig.svg", caption="MTPINN Methodology and Architecture", use_container_width=True)
+        st.image("assets/Methodoloy-Fig.svg", caption="MTPINN Methodology and Architecture", width="stretch")
 
 # ------------------------------------------------------------------------
 # 📊 EVALUATE MODEL PAGE
 # ------------------------------------------------------------------------
-elif page == "Evaluate Model":
-    st.title("Evaluate the model")
+elif page == "Classify Flow Regime":
+    st.title("Classify Flow Regime")
     st.markdown("""
     Upload a **CSV or Excel file** containing flow measurement data with a **'Pressure (barA)'** column.  
     The system will visualize the data and predict the **flow regime** using the trained MTPINN model.
@@ -358,7 +627,7 @@ elif page == "Evaluate Model":
             
             # Show data preview
             with st.expander("👀 View Data Preview"):
-                st.dataframe(df.head(10), use_container_width=False)
+                st.dataframe(df.head(10), width="content")
                 st.caption(f"**Dataset shape:** {df.shape[0]} rows × {df.shape[1]} columns")
 
             # Check for pressure column
@@ -371,63 +640,62 @@ elif page == "Evaluate Model":
             if pressure_col is None:
                 st.error("❌ No 'Pressure' column found in the dataset. Please ensure your file contains a pressure column.")
             else:
-                st.info(f"✓ Using column: **{pressure_col}**")
-
                 # --- Plot pressure signal ---
                 numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
 
                 if len(numeric_cols) >= 1:
-                    st.subheader("📈 Data Visualization")
+                    with st.expander("📈 View Data Visualizations"):
+                        st.subheader("📈 Data Visualization")
 
-                    # Identify time column
-                    time_col = None
-                    time_keywords = ['time', 'timestamp', 'date', 't', 'sec', 'second']
-                    for col in df.columns:
-                        if any(keyword in col.lower() for keyword in time_keywords):
-                            time_col = col
-                            break
-                    
-                    # Plot pressure signal
-                    st.markdown("**Pressure Signal:**")
-                    fig, ax = plt.subplots(figsize=(10, 4))
-                    
-                    if time_col and time_col in df.columns:
-                        ax.plot(df[time_col], df[pressure_col], linewidth=1.5, color='#667eea')
-                        ax.set_xlabel(time_col, fontsize=10)
-                    else:
-                        ax.plot(df.index, df[pressure_col], linewidth=1.5, color='#667eea')
-                        ax.set_xlabel("Sample Index", fontsize=10)
-                    
-                    ax.set_title("Pressure Signal Over Time", fontsize=12)
-                    ax.set_ylabel("Pressure (barA)", fontsize=10)
-                    ax.grid(True, alpha=0.3)
-                    plt.tight_layout()
-                    st.pyplot(fig)
-
-                    # Correlation heatmap if multiple numeric columns
-                    plot_cols = [col for col in numeric_cols if col != time_col]
-                    if len(plot_cols) >= 2:
-                        st.markdown("**Correlation Between Features:**")
-                        corr = df[plot_cols[:5]].corr()
-                        fig2, ax2 = plt.subplots(figsize=(6, 5))
-                        cax = ax2.matshow(corr, cmap="coolwarm", vmin=-1, vmax=1)
-                        fig2.colorbar(cax)
-                        ax2.set_xticks(range(len(corr.columns)))
-                        ax2.set_yticks(range(len(corr.columns)))
-                        ax2.set_xticklabels(corr.columns, rotation=45, ha="left", fontsize=9)
-                        ax2.set_yticklabels(corr.columns, fontsize=9)
-                        ax2.set_title("Feature Correlation Heatmap", pad=20, fontsize=12)
+                        # Identify time column
+                        time_col = None
+                        time_keywords = ['time', 'timestamp', 'date', 't', 'sec', 'second']
+                        for col in df.columns:
+                            if any(keyword in col.lower() for keyword in time_keywords):
+                                time_col = col
+                                break
                         
-                        for i in range(len(corr.columns)):
-                            for j in range(len(corr.columns)):
-                                ax2.text(j, i, f'{corr.iloc[i, j]:.2f}', 
-                                        ha='center', va='center', color='black', fontsize=8)
+                        # Plot pressure signal
+                        st.markdown("**Pressure Signal:**")
+                        fig, ax = plt.subplots(figsize=(10, 4))
                         
+                        if time_col and time_col in df.columns:
+                            ax.plot(df[time_col], df[pressure_col], linewidth=1.5, color='#8a1538')
+                            ax.set_xlabel(time_col, fontsize=10)
+                        else:
+                            ax.plot(df.index, df[pressure_col], linewidth=1.5, color='#8a1538')
+                            ax.set_xlabel("Sample Index", fontsize=10)
+                        
+                        ax.set_title("Pressure Signal Over Time", fontsize=12)
+                        ax.set_ylabel("Pressure (barA)", fontsize=10)
+                        ax.grid(True, alpha=0.3)
                         plt.tight_layout()
-                        st.pyplot(fig2)
+                        st.pyplot(fig)
+
+                        # Correlation heatmap if multiple numeric columns
+                        plot_cols = [col for col in numeric_cols if col != time_col]
+                        if len(plot_cols) >= 2:
+                            st.markdown("**Correlation Between Features:**")
+                            corr = df[plot_cols[:5]].corr()
+                            fig2, ax2 = plt.subplots(figsize=(6, 5))
+                            cax = ax2.matshow(corr, cmap="coolwarm", vmin=-1, vmax=1)
+                            fig2.colorbar(cax)
+                            ax2.set_xticks(range(len(corr.columns)))
+                            ax2.set_yticks(range(len(corr.columns)))
+                            ax2.set_xticklabels(corr.columns, rotation=45, ha="left", fontsize=9)
+                            ax2.set_yticklabels(corr.columns, fontsize=9)
+                            ax2.set_title("Feature Correlation Heatmap", pad=20, fontsize=12)
+                            
+                            for i in range(len(corr.columns)):
+                                for j in range(len(corr.columns)):
+                                    ax2.text(j, i, f'{corr.iloc[i, j]:.2f}', 
+                                            ha='center', va='center', color='black', fontsize=8)
+                            
+                            plt.tight_layout()
+                            st.pyplot(fig2)
 
                 # --- Velocity Input ---
-                st.subheader("⚙️ Flow Parameters")
+                st.subheader("⚙️ Enter Flow Parameters")
                 col1, col2 = st.columns(2)
                 with col1:
                     vsg_input = st.number_input("Superficial Gas Velocity (Vsg) [m/s]", 
@@ -437,33 +705,53 @@ elif page == "Evaluate Model":
                                                 min_value=0.0, max_value=10.0, value=0.5, step=0.1)
 
                 # --- Model Prediction ---
-                if st.button("🔍 Predict Flow Regime", use_container_width=False):
+                st.markdown("""
+                <div class="cta-card">
+                    <div class="cta-title">Run Flow Regime Classification</div>
+                    <div class="cta-subtitle">
+                         Click below to see the classification results.
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                cta_col1, cta_col2, cta_col3 = st.columns([1, 2, 1])
+                with cta_col2:
+                    run_prediction = st.button("🔍 Predict Flow Regime", width="stretch")
+
+                if run_prediction:
                     with st.spinner("Running prediction..."):
                         pressure_data = df[pressure_col].values
                         
                         result = predict_flow_regime(model, scalers, pressure_data, vsg_input, vsl_input)
                         
                         if result:
+                            st.markdown('<div id="prediction-results-anchor"></div>', unsafe_allow_html=True)
+                            components.html("""
+                            <script>
+                              (function() {
+                                const doc = window.parent.document || document;
+                                let tries = 0;
+                                const scrollToResults = () => {
+                                  const el = doc.getElementById("prediction-results-anchor");
+                                  if (el) {
+                                    el.scrollIntoView({ behavior: "smooth", block: "start" });
+                                    return;
+                                  }
+                                  tries += 1;
+                                  if (tries < 30) {
+                                    setTimeout(scrollToResults, 200);
+                                  }
+                                };
+                                setTimeout(scrollToResults, 200);
+                              })();
+                            </script>
+                            """, height=0)
                             st.subheader("🧠 Prediction Results")
                             
                             predicted_class_name = CLASS_NAMES[result['predicted_class']]
                             
                             # Display prediction metrics
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.metric("Predicted Flow Regime", predicted_class_name)
-                            with col2:
-                                st.metric("Windows Analyzed", result['num_windows'])
-                            
-                            # Display velocity predictions
-                            st.markdown("**Predicted Velocities:**")
-                            vel_col1, vel_col2 = st.columns(2)
-                            with vel_col1:
-                                st.metric("Vsg (Predicted)", f"{result['vsg_predicted']:.3f} m/s", 
-                                         delta=f"{result['vsg_predicted']-vsg_input:.3f}")
-                            with vel_col2:
-                                st.metric("Vsl (Predicted)", f"{result['vsl_predicted']:.3f} m/s",
-                                         delta=f"{result['vsl_predicted']-vsl_input:.3f}")
+                            st.metric("Predicted Flow Regime", predicted_class_name)
                             
                             # Display flow regime GIF/image
                             gif_mapping = {
@@ -490,12 +778,19 @@ elif page == "Evaluate Model":
                             
                             if media_path:
                                 st.markdown(f"**{predicted_class_name} Visualization:**")
-                                col1, col2, col3 = st.columns([1, 2, 1])
-                                with col2:
-                                    st.image(media_path, caption=f"{predicted_class_name} Animation", 
-                                           use_container_width=True)
+                                render_media_card(media_path, f"{predicted_class_name} Animation")
                             else:
                                 st.warning(f"⚠️ Visualization not found for {predicted_class_name}")
+
+                            # Display velocity predictions
+                            st.markdown("**Predicted Velocities:**")
+                            vel_col1, vel_col2 = st.columns(2)
+                            with vel_col1:
+                                st.metric("Vsg (Predicted)", f"{result['vsg_predicted']:.3f} m/s", 
+                                         delta=f"{result['vsg_predicted']-vsg_input:.3f}")
+                            with vel_col2:
+                                st.metric("Vsl (Predicted)", f"{result['vsl_predicted']:.3f} m/s",
+                                         delta=f"{result['vsl_predicted']-vsl_input:.3f}")
 
         else:
             st.info("👆 Please upload a file to begin visualization and prediction.")
