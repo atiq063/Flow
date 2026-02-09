@@ -247,7 +247,7 @@ def predict_flow_regime(model, scalers, pressure_data, vsg=0.5, vsl=0.5):
         st.exception(e)
         return None
 
-def render_media_card(media_path, caption):
+def render_media_card(media_path, title, caption):
     """Render an image or GIF inside a styled card."""
     try:
         with open(media_path, "rb") as f:
@@ -258,6 +258,7 @@ def render_media_card(media_path, caption):
         st.markdown(
             f"""
             <div class="media-card">
+                <div class="media-title">{title}</div>
                 <img src="data:{mime};base64,{media_b64}" alt="{caption}">
                 <div class="media-caption">{caption}</div>
             </div>
@@ -266,6 +267,187 @@ def render_media_card(media_path, caption):
         )
     except Exception as e:
         st.warning(f"⚠️ Unable to render visualization card: {str(e)}")
+
+def safe_divide(numerator, denominator):
+    if denominator == 0:
+        return np.nan
+    return numerator / denominator
+
+def format_value(value):
+    if value is None:
+        return "n/a"
+    if isinstance(value, (float, np.floating)) and (np.isnan(value) or np.isinf(value)):
+        return "n/a"
+    return f"{value:.6g}"
+
+def build_output_table(rows, vsg_pred=None, vsl_pred=None, vsg_input=None, vsl_input=None):
+    rows_formatted = [(name, format_value(value), units) for name, value, units in rows]
+    midpoint = (len(rows_formatted) + 1) // 2
+    left_rows = rows_formatted[:midpoint]
+    right_rows = rows_formatted[midpoint:]
+
+    html_rows = []
+    max_len = max(len(left_rows), len(right_rows))
+    for idx in range(max_len):
+        left = left_rows[idx] if idx < len(left_rows) else ("", "", "")
+        right = right_rows[idx] if idx < len(right_rows) else ("", "", "")
+        html_rows.append(
+            "<tr>"
+            f"<td>{left[0]}</td><td>{left[1]}</td><td>{left[2]}</td>"
+            f"<td>{right[0]}</td><td>{right[1]}</td><td>{right[2]}</td>"
+            "</tr>"
+        )
+
+    metrics_html = ""
+    if vsg_pred is not None and vsl_pred is not None:
+        vsg_delta = None if vsg_input is None else vsg_pred - vsg_input
+        vsl_delta = None if vsl_input is None else vsl_pred - vsl_input
+        vsg_delta_text = "" if vsg_delta is None else f"Delta: {format_value(vsg_delta)} m/s"
+        vsl_delta_text = "" if vsl_delta is None else f"Delta: {format_value(vsl_delta)} m/s"
+        metrics_html = (
+            '<div class="derived-metrics">'
+            '<div class="derived-metric">'
+            '<div class="metric-label">Vsg (Predicted)</div>'
+            f'<div class="metric-value">{format_value(vsg_pred)} m/s</div>'
+            f'<div class="metric-delta">{vsg_delta_text}</div>'
+            '</div>'
+            '<div class="derived-metric">'
+            '<div class="metric-label">Vsl (Predicted)</div>'
+            f'<div class="metric-value">{format_value(vsl_pred)} m/s</div>'
+            f'<div class="metric-delta">{vsl_delta_text}</div>'
+            '</div>'
+            '</div>'
+        )
+
+    html = (
+        '<div class="derived-card">'
+        '<div class="derived-title">Derived Flow Calculations</div>'
+        '<table class="derived-table">'
+        '<thead>'
+        '<tr>'
+        '<th>Parameter</th><th>Value</th><th>Units</th>'
+        '<th>Parameter</th><th>Value</th><th>Units</th>'
+        '</tr>'
+        '</thead>'
+        '<tbody>'
+        f"{''.join(html_rows)}"
+        '</tbody>'
+        '</table>'
+        f"{metrics_html}"
+        '</div>'
+    )
+    st.markdown(html, unsafe_allow_html=True)
+
+def compute_mass_flow_outputs(inputs):
+    mdot_l = inputs["mdot_l"]
+    mdot_g = inputs["mdot_g"]
+    p_in = inputs["p_in"]
+    t = inputs["t"]
+    z = inputs["z"]
+    rho_l = inputs["rho_l"]
+    mu_l = inputs["mu_l"]
+    mu_g = inputs["mu_g"]
+    d = inputs["d"]
+    r_g = inputs["r_g"]
+
+    area = np.pi * d**2 / 4
+    rho_g = safe_divide(p_in, z * r_g * t)
+    q_l = safe_divide(mdot_l, rho_l)
+    q_g = safe_divide(mdot_g, rho_g)
+    q_t = q_l + q_g
+    alpha_in = safe_divide(q_g, q_t)
+    u_sl = safe_divide(q_l, area)
+    u_sg = safe_divide(q_g, area)
+    u_m = u_sl + u_sg
+    rho_m = alpha_in * rho_g + (1 - alpha_in) * rho_l
+    mu_m = alpha_in * mu_g + (1 - alpha_in) * mu_l
+    re_m = safe_divide(rho_m * u_m * d, mu_m)
+
+    outputs = [
+        ("A", area, "m^2"),
+        ("rho_G", rho_g, "kg/m^3"),
+        ("q_L", q_l, "m^3/s"),
+        ("q_G", q_g, "m^3/s"),
+        ("q_T", q_t, "m^3/s"),
+        ("alpha_in", alpha_in, "-"),
+        ("U_sl", u_sl, "m/s"),
+        ("U_sg", u_sg, "m/s"),
+        ("U_m", u_m, "m/s"),
+        ("rho_m", rho_m, "kg/m^3"),
+        ("mu_m", mu_m, "Pa*s"),
+        ("Re_m", re_m, "-"),
+    ]
+
+    return outputs, u_sg, u_sl
+
+def compute_volume_flow_outputs(inputs):
+    q_l = inputs["q_l"]
+    q_g = inputs["q_g"]
+    u_sl_input = inputs["u_sl"]
+    u_sg_input = inputs["u_sg"]
+    p_in = inputs["p_in"]
+    t = inputs["t"]
+    z = inputs["z"]
+    rho_l = inputs["rho_l"]
+    mu_l = inputs["mu_l"]
+    mu_g = inputs["mu_g"]
+    d = inputs["d"]
+    r_g = inputs["r_g"]
+    u_l = inputs.get("u_l")
+    u_g = inputs.get("u_g")
+
+    area = np.pi * d**2 / 4
+    rho_g = safe_divide(p_in, z * r_g * t)
+    u_sl = safe_divide(q_l, area)
+    u_sg = safe_divide(q_g, area)
+    mdot_l = rho_l * q_l
+    mdot_g = rho_g * q_g
+    q_t = q_l + q_g
+    alpha_in_q = safe_divide(q_g, q_t)
+    u_m = u_sl + u_sg
+
+    a_l = None
+    a_g = None
+    alpha_in_area = None
+    s = None
+    if u_l and u_g:
+        a_l = safe_divide(q_l, u_l)
+        a_g = safe_divide(q_g, u_g)
+        alpha_in_area = safe_divide(a_g, a_g + a_l)
+        s = safe_divide(u_g, u_l)
+
+    alpha_used = alpha_in_area if alpha_in_area is not None else alpha_in_q
+    rho_m = alpha_used * rho_g + (1 - alpha_used) * rho_l
+    mu_m = alpha_used * mu_g + (1 - alpha_used) * mu_l
+    re_m = safe_divide(rho_m * u_m * d, mu_m)
+
+    outputs = [
+        ("A", area, "m^2"),
+        ("rho_G", rho_g, "kg/m^3"),
+        ("q_L", q_l, "m^3/s"),
+        ("q_G", q_g, "m^3/s"),
+        ("mdot_L", mdot_l, "kg/s"),
+        ("mdot_G", mdot_g, "kg/s"),
+        ("q_T", q_t, "m^3/s"),
+        ("alpha_in (from q)", alpha_in_q, "-"),
+        ("U_m", u_m, "m/s"),
+    ]
+
+    if a_l is not None and a_g is not None:
+        outputs.extend([
+            ("A_L", a_l, "m^2"),
+            ("A_G", a_g, "m^2"),
+            ("alpha_in (from areas)", alpha_in_area, "-"),
+            ("S", s, "-"),
+        ])
+
+    outputs.extend([
+        ("rho_m", rho_m, "kg/m^3"),
+        ("mu_m", mu_m, "Pa*s"),
+        ("Re_m", re_m, "-"),
+    ])
+
+    return outputs, u_sl_input, u_sg_input, u_sl, u_sg, u_sg, u_sl
 
 # --- Initialize session state ---
 if "page" not in st.session_state:
@@ -400,21 +582,112 @@ st.markdown("""
         border-radius: 16px;
         padding: 18px;
         box-shadow: 0 12px 20px rgba(31, 41, 55, 0.08);
-        margin: 12px auto 20px auto;
-        max-width: 640px;
+        margin: 12px 0 20px 0;
+        min-height: 520px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
         text-align: center;
     }
 
     .media-card img {
         width: 100%;
-        height: auto;
+        height: 380px;
+        object-fit: contain;
         border-radius: 12px;
+    }
+
+    .media-title {
+        font-family: "Crimson Pro", "Times New Roman", serif;
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--hbku-maroon);
+        margin-bottom: 10px;
     }
 
     .media-caption {
         color: var(--hbku-slate);
         font-size: 0.95rem;
         margin-top: 10px;
+    }
+
+    .derived-card {
+        background: #ffffff;
+        border: 1px solid rgba(138, 21, 56, 0.15);
+        border-radius: 16px;
+        padding: 16px 18px;
+        box-shadow: 0 12px 20px rgba(31, 41, 55, 0.08);
+        margin: 12px 0 20px 0;
+        min-height: 520px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .derived-title {
+        font-family: "Crimson Pro", "Times New Roman", serif;
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--hbku-maroon);
+        margin-bottom: 10px;
+    }
+
+    .derived-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.92rem;
+        margin-bottom: 4px;
+    }
+
+    .derived-table th {
+        text-align: left;
+        color: var(--hbku-ink);
+        font-weight: 600;
+        padding: 8px 6px;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+    }
+
+    .derived-table td {
+        padding: 6px 6px;
+        color: var(--hbku-slate);
+        border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+        vertical-align: top;
+    }
+
+    .derived-table tr:last-child td {
+        border-bottom: line;
+    }
+
+    .derived-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 14px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(15, 23, 42, 0.08);
+    }
+
+    .derived-metric {
+        background: linear-gradient(135deg, rgba(138, 21, 56, 0.08), rgba(198, 161, 91, 0.08));
+        border-radius: 12px;
+        padding: 10px 12px;
+    }
+
+    .metric-label {
+        color: var(--hbku-slate);
+        font-size: 0.85rem;
+    }
+
+    .metric-value {
+        color: var(--hbku-ink);
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-top: 2px;
+    }
+
+    .metric-delta {
+        color: var(--hbku-slate);
+        font-size: 0.8rem;
+        margin-top: 2px;
     }
 
     .stFileUploader, .stTextInput, .stNumberInput, .stSelectbox {
@@ -436,6 +709,11 @@ st.markdown("""
         border-radius: 14px;
         padding: 16px 18px;
         box-shadow: 0 10px 18px rgba(31, 41, 55, 0.08);
+    }
+
+    .regime-card [data-testid="stMetric"] {
+        background: linear-gradient(135deg, rgba(138, 21, 56, 0.14), rgba(198, 161, 91, 0.18));
+        border: 1px solid rgba(138, 21, 56, 0.2);
     }
 
     .stDataFrame {
@@ -614,6 +892,7 @@ elif page == "Classify Flow Regime":
     if model is None:
         st.error("❌ Failed to load model. Please check if the model file exists at 'models/best_multitask_pinn_fold_5.pth'")
     else:
+        st.subheader("1. Upload and Inspect Data")
         uploaded_file = st.file_uploader("📂 Upload your dataset", type=["csv", "xlsx"])
 
         if uploaded_file is not None:
@@ -624,11 +903,6 @@ elif page == "Classify Flow Regime":
                 df = pd.read_excel(uploaded_file)
 
             st.success("✅ File uploaded successfully!")
-            
-            # Show data preview
-            with st.expander("👀 View Data Preview"):
-                st.dataframe(df.head(10), width="content")
-                st.caption(f"**Dataset shape:** {df.shape[0]} rows × {df.shape[1]} columns")
 
             # Check for pressure column
             pressure_col = None
@@ -636,73 +910,160 @@ elif page == "Classify Flow Regime":
                 if 'pressure' in col.lower():
                     pressure_col = col
                     break
-            
+
+            numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+
+            preview_tab, viz_tab = st.tabs(["Data Preview", "Visualizations"])
+            with preview_tab:
+                st.dataframe(df.head(10), width="content")
+                st.caption(f"**Dataset shape:** {df.shape[0]} rows × {df.shape[1]} columns")
+
+            with viz_tab:
+                if pressure_col is None:
+                    st.info("Upload a dataset with a pressure column to view visualizations.")
+                elif len(numeric_cols) >= 1:
+                    st.subheader("📈 Data Visualization")
+
+                    # Identify time column
+                    time_col = None
+                    time_keywords = ['time', 'timestamp', 'date', 't', 'sec', 'second']
+                    for col in df.columns:
+                        if any(keyword in col.lower() for keyword in time_keywords):
+                            time_col = col
+                            break
+                    
+                    # Plot pressure signal
+                    st.markdown("**Pressure Signal:**")
+                    fig, ax = plt.subplots(figsize=(10, 4))
+                    
+                    if time_col and time_col in df.columns:
+                        ax.plot(df[time_col], df[pressure_col], linewidth=1.5, color='#8a1538')
+                        ax.set_xlabel(time_col, fontsize=10)
+                    else:
+                        ax.plot(df.index, df[pressure_col], linewidth=1.5, color='#8a1538')
+                        ax.set_xlabel("Sample Index", fontsize=10)
+                    
+                    ax.set_title("Pressure Signal Over Time", fontsize=12)
+                    ax.set_ylabel("Pressure (barA)", fontsize=10)
+                    ax.grid(True, alpha=0.3)
+                    plt.tight_layout()
+                    st.pyplot(fig)
+
+                    # Correlation heatmap if multiple numeric columns
+                    plot_cols = [col for col in numeric_cols if col != time_col]
+                    if len(plot_cols) >= 2:
+                        st.markdown("**Correlation Between Features:**")
+                        corr = df[plot_cols[:5]].corr()
+                        fig2, ax2 = plt.subplots(figsize=(6, 5))
+                        cax = ax2.matshow(corr, cmap="coolwarm", vmin=-1, vmax=1)
+                        fig2.colorbar(cax)
+                        ax2.set_xticks(range(len(corr.columns)))
+                        ax2.set_yticks(range(len(corr.columns)))
+                        ax2.set_xticklabels(corr.columns, rotation=45, ha="left", fontsize=9)
+                        ax2.set_yticklabels(corr.columns, fontsize=9)
+                        ax2.set_title("Feature Correlation Heatmap", pad=20, fontsize=12)
+                        
+                        for i in range(len(corr.columns)):
+                            for j in range(len(corr.columns)):
+                                ax2.text(j, i, f'{corr.iloc[i, j]:.2f}', 
+                                        ha='center', va='center', color='black', fontsize=8)
+                        
+                        plt.tight_layout()
+                        st.pyplot(fig2)
+
             if pressure_col is None:
                 st.error("❌ No 'Pressure' column found in the dataset. Please ensure your file contains a pressure column.")
             else:
-                # --- Plot pressure signal ---
-                numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+                st.divider()
+                # --- Flow Parameter Input ---
+                st.subheader("2. Define Flow Parameters")
+                input_mode = st.radio(
+                    "Select input type",
+                    ["Mass flow rates", "Volume flow rates", "Direct Vsg/Vsl"],
+                    horizontal=True
+                )
 
-                if len(numeric_cols) >= 1:
-                    with st.expander("📈 View Data Visualizations"):
-                        st.subheader("📈 Data Visualization")
+                if input_mode == "Mass flow rates":
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        mdot_l = st.number_input("m_dot_L (kg/s)", min_value=0.0, value=0.5, step=0.1)
+                        p_in = st.number_input("P_in (Pa)", min_value=0.0, value=101325.0, step=100.0)
+                        rho_l = st.number_input("rho_L (kg/m^3)", min_value=0.0, value=1000.0, step=10.0)
+                        mu_l = st.number_input("mu_L (Pa*s)", min_value=0.0, value=0.001, step=0.0001, format="%.6f")
+                    with col2:
+                        mdot_g = st.number_input("m_dot_G (kg/s)", min_value=0.0, value=0.1, step=0.05)
+                        t = st.number_input("T (K)", min_value=0.0, value=298.0, step=1.0)
+                        mu_g = st.number_input("mu_G (Pa*s)", min_value=0.0, value=1.8e-5, step=1e-6, format="%.7f")
+                        d = st.number_input("D (m)", min_value=0.0, value=0.05, step=0.005, format="%.4f")
+                    with col3:
+                        z = st.number_input("Z (-)", min_value=0.0, value=1.0, step=0.01)
+                        r_g = st.number_input(
+                            "R_g (J*kg^-1*K^-1)",
+                            min_value=0.0,
+                            value=287.0,
+                            step=1.0,
+                            disabled=True
+                        )
 
-                        # Identify time column
-                        time_col = None
-                        time_keywords = ['time', 'timestamp', 'date', 't', 'sec', 'second']
-                        for col in df.columns:
-                            if any(keyword in col.lower() for keyword in time_keywords):
-                                time_col = col
-                                break
-                        
-                        # Plot pressure signal
-                        st.markdown("**Pressure Signal:**")
-                        fig, ax = plt.subplots(figsize=(10, 4))
-                        
-                        if time_col and time_col in df.columns:
-                            ax.plot(df[time_col], df[pressure_col], linewidth=1.5, color='#8a1538')
-                            ax.set_xlabel(time_col, fontsize=10)
-                        else:
-                            ax.plot(df.index, df[pressure_col], linewidth=1.5, color='#8a1538')
-                            ax.set_xlabel("Sample Index", fontsize=10)
-                        
-                        ax.set_title("Pressure Signal Over Time", fontsize=12)
-                        ax.set_ylabel("Pressure (barA)", fontsize=10)
-                        ax.grid(True, alpha=0.3)
-                        plt.tight_layout()
-                        st.pyplot(fig)
+                elif input_mode == "Volume flow rates":
+                    default_d = 0.05
+                    default_u_sl = 0.5
+                    default_u_sg = 0.5
+                    default_area = np.pi * default_d**2 / 4
+                    default_q_l = default_u_sl * default_area
+                    default_q_g = default_u_sg * default_area
 
-                        # Correlation heatmap if multiple numeric columns
-                        plot_cols = [col for col in numeric_cols if col != time_col]
-                        if len(plot_cols) >= 2:
-                            st.markdown("**Correlation Between Features:**")
-                            corr = df[plot_cols[:5]].corr()
-                            fig2, ax2 = plt.subplots(figsize=(6, 5))
-                            cax = ax2.matshow(corr, cmap="coolwarm", vmin=-1, vmax=1)
-                            fig2.colorbar(cax)
-                            ax2.set_xticks(range(len(corr.columns)))
-                            ax2.set_yticks(range(len(corr.columns)))
-                            ax2.set_xticklabels(corr.columns, rotation=45, ha="left", fontsize=9)
-                            ax2.set_yticklabels(corr.columns, fontsize=9)
-                            ax2.set_title("Feature Correlation Heatmap", pad=20, fontsize=12)
-                            
-                            for i in range(len(corr.columns)):
-                                for j in range(len(corr.columns)):
-                                    ax2.text(j, i, f'{corr.iloc[i, j]:.2f}', 
-                                            ha='center', va='center', color='black', fontsize=8)
-                            
-                            plt.tight_layout()
-                            st.pyplot(fig2)
+                    st.caption("U_sl and U_sg are used as reference checks. Computations use q_L and q_G.")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        q_l = st.number_input("q_L (m^3/s)", min_value=0.0, value=default_q_l, step=1e-4, format="%.6f")
+                        u_sl = st.number_input("U_sl (m/s)", min_value=0.0, value=default_u_sl, step=0.05)
+                        p_in = st.number_input("P_in (Pa)", min_value=0.0, value=101325.0, step=100.0)
+                        rho_l = st.number_input("rho_L (kg/m^3)", min_value=0.0, value=1000.0, step=10.0)
+                    with col2:
+                        q_g = st.number_input("q_G (m^3/s)", min_value=0.0, value=default_q_g, step=1e-4, format="%.6f")
+                        u_sg = st.number_input("U_sg (m/s)", min_value=0.0, value=default_u_sg, step=0.05)
+                        t = st.number_input("T (K)", min_value=0.0, value=298.0, step=1.0)
+                        mu_l = st.number_input("mu_L (Pa*s)", min_value=0.0, value=0.001, step=0.0001, format="%.6f")
+                    with col3:
+                        z = st.number_input("Z (-)", min_value=0.0, value=1.0, step=0.01)
+                        mu_g = st.number_input("mu_G (Pa*s)", min_value=0.0, value=1.8e-5, step=1e-6, format="%.7f")
+                        d = st.number_input("D (m)", min_value=0.0, value=default_d, step=0.005, format="%.4f")
+                        r_g = st.number_input(
+                            "R_g (J*kg^-1*K^-1)",
+                            min_value=0.0,
+                            value=287.0,
+                            step=1.0,
+                            disabled=True
+                        )
 
-                # --- Velocity Input ---
-                st.subheader("⚙️ Enter Flow Parameters")
-                col1, col2 = st.columns(2)
-                with col1:
-                    vsg_input = st.number_input("Superficial Gas Velocity (Vsg) [m/s]", 
-                                                min_value=0.0, max_value=10.0, value=0.5, step=0.1)
-                with col2:
-                    vsl_input = st.number_input("Superficial Liquid Velocity (Vsl) [m/s]", 
-                                                min_value=0.0, max_value=10.0, value=0.5, step=0.1)
+                    use_phase_velocities = st.checkbox("Provide u_L and u_G (optional)", value=False)
+                    u_l = None
+                    u_g = None
+                    if use_phase_velocities:
+                        col4, col5 = st.columns(2)
+                        with col4:
+                            u_l = st.number_input("u_L (m/s)", min_value=0.0, value=0.5, step=0.05)
+                        with col5:
+                            u_g = st.number_input("u_G (m/s)", min_value=0.0, value=0.5, step=0.05)
+                else:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        direct_vsg = st.number_input(
+                            "Superficial Gas Velocity (Vsg) [m/s]",
+                            min_value=0.0,
+                            max_value=10.0,
+                            value=0.5,
+                            step=0.1
+                        )
+                    with col2:
+                        direct_vsl = st.number_input(
+                            "Superficial Liquid Velocity (Vsl) [m/s]",
+                            min_value=0.0,
+                            max_value=10.0,
+                            value=0.5,
+                            step=0.1
+                        )
 
                 # --- Model Prediction ---
                 st.markdown("""
@@ -721,8 +1082,59 @@ elif page == "Classify Flow Regime":
                 if run_prediction:
                     with st.spinner("Running prediction..."):
                         pressure_data = df[pressure_col].values
-                        
-                        result = predict_flow_regime(model, scalers, pressure_data, vsg_input, vsl_input)
+
+                        derived_outputs = []
+                        vsg_input = None
+                        vsl_input = None
+
+                        if input_mode == "Mass flow rates":
+                            mass_inputs = {
+                                "mdot_l": mdot_l,
+                                "mdot_g": mdot_g,
+                                "p_in": p_in,
+                                "t": t,
+                                "z": z,
+                                "rho_l": rho_l,
+                                "mu_l": mu_l,
+                                "mu_g": mu_g,
+                                "d": d,
+                                "r_g": r_g,
+                            }
+                            derived_outputs, vsg_input, vsl_input = compute_mass_flow_outputs(mass_inputs)
+                        elif input_mode == "Volume flow rates":
+                            volume_inputs = {
+                                "q_l": q_l,
+                                "q_g": q_g,
+                                "u_sl": u_sl,
+                                "u_sg": u_sg,
+                                "p_in": p_in,
+                                "t": t,
+                                "z": z,
+                                "rho_l": rho_l,
+                                "mu_l": mu_l,
+                                "mu_g": mu_g,
+                                "d": d,
+                                "r_g": r_g,
+                                "u_l": u_l,
+                                "u_g": u_g,
+                            }
+                            derived_outputs, u_sl_input, u_sg_input, u_sl_calc, u_sg_calc, vsg_input, vsl_input = compute_volume_flow_outputs(volume_inputs)
+
+                            tolerance = 0.05
+                            if u_sl_input > 0 and abs(u_sl_input - u_sl_calc) > tolerance * max(abs(u_sl_calc), 1e-9):
+                                st.warning("U_sl input does not match q_L / A. Outputs use q_L and q_G.")
+                            if u_sg_input > 0 and abs(u_sg_input - u_sg_calc) > tolerance * max(abs(u_sg_calc), 1e-9):
+                                st.warning("U_sg input does not match q_G / A. Outputs use q_L and q_G.")
+                        else:
+                            derived_outputs = []
+                            vsg_input = direct_vsg
+                            vsl_input = direct_vsl
+
+                        if vsg_input is None or vsl_input is None or np.isnan(vsg_input) or np.isnan(vsl_input):
+                            st.error("❌ Unable to compute superficial velocities. Please check your inputs.")
+                            result = None
+                        else:
+                            result = predict_flow_regime(model, scalers, pressure_data, vsg_input, vsl_input)
                         
                         if result:
                             st.markdown('<div id="prediction-results-anchor"></div>', unsafe_allow_html=True)
@@ -746,12 +1158,15 @@ elif page == "Classify Flow Regime":
                               })();
                             </script>
                             """, height=0)
-                            st.subheader("🧠 Prediction Results")
+                            st.divider()
+                            st.subheader("3. Prediction Results")
                             
                             predicted_class_name = CLASS_NAMES[result['predicted_class']]
                             
-                            # Display prediction metrics
+                            st.markdown("**Prediction Summary:**")
+                            st.markdown('<div class="regime-card">', unsafe_allow_html=True)
                             st.metric("Predicted Flow Regime", predicted_class_name)
+                            st.markdown("</div>", unsafe_allow_html=True)
                             
                             # Display flow regime GIF/image
                             gif_mapping = {
@@ -776,21 +1191,25 @@ elif page == "Classify Flow Regime":
                             elif image_path and os.path.exists(image_path):
                                 media_path = image_path
                             
-                            if media_path:
-                                st.markdown(f"**{predicted_class_name} Visualization:**")
-                                render_media_card(media_path, f"{predicted_class_name} Animation")
-                            else:
-                                st.warning(f"⚠️ Visualization not found for {predicted_class_name}")
-
-                            # Display velocity predictions
-                            st.markdown("**Predicted Velocities:**")
-                            vel_col1, vel_col2 = st.columns(2)
-                            with vel_col1:
-                                st.metric("Vsg (Predicted)", f"{result['vsg_predicted']:.3f} m/s", 
-                                         delta=f"{result['vsg_predicted']-vsg_input:.3f}")
-                            with vel_col2:
-                                st.metric("Vsl (Predicted)", f"{result['vsl_predicted']:.3f} m/s",
-                                         delta=f"{result['vsl_predicted']-vsl_input:.3f}")
+                            vis_col, derived_col = st.columns([1.1, 1])
+                            with vis_col:
+                                if media_path:
+                                    render_media_card(
+                                        media_path,
+                                        f"{predicted_class_name} Visualization",
+                                        f"{predicted_class_name}"
+                                    )
+                                else:
+                                    st.warning(f"⚠️ Visualization not found for {predicted_class_name}")
+                            with derived_col:
+                                if derived_outputs:
+                                    build_output_table(
+                                        derived_outputs,
+                                        vsg_pred=result['vsg_predicted'],
+                                        vsl_pred=result['vsl_predicted'],
+                                        vsg_input=vsg_input,
+                                        vsl_input=vsl_input
+                                    )
 
         else:
             st.info("👆 Please upload a file to begin visualization and prediction.")
