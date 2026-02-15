@@ -280,8 +280,12 @@ def format_value(value):
         return "n/a"
     return f"{value:.6g}"
 
-def labeled_number_input(label_html, label_plain, **kwargs):
-    st.markdown(f"<div class=\"input-label\">{label_html}</div>", unsafe_allow_html=True)
+def labeled_number_input(label_html, label_plain, description=None, **kwargs):
+    desc_html = f"<div class=\"input-desc\">{description}</div>" if description else ""
+    st.markdown(
+        f"<div class=\"input-label\">{label_html}</div>{desc_html}",
+        unsafe_allow_html=True
+    )
     return st.number_input(label_plain, label_visibility="collapsed", key=label_plain, **kwargs)
 
 def build_output_table(
@@ -293,7 +297,10 @@ def build_output_table(
     show_table=True,
     show_title=True,
 ):
-    rows_formatted = [(name, format_value(value), units) for name, value, units in rows]
+    rows_formatted = [
+        (name, format_value(value), units, desc if desc is not None else "")
+        for name, value, units, desc in rows
+    ]
     midpoint = (len(rows_formatted) + 1) // 2
     left_rows = rows_formatted[:midpoint]
     right_rows = rows_formatted[midpoint:]
@@ -301,12 +308,14 @@ def build_output_table(
     html_rows = []
     max_len = max(len(left_rows), len(right_rows))
     for idx in range(max_len):
-        left = left_rows[idx] if idx < len(left_rows) else ("", "", "")
-        right = right_rows[idx] if idx < len(right_rows) else ("", "", "")
+        left = left_rows[idx] if idx < len(left_rows) else ("", "", "", "")
+        right = right_rows[idx] if idx < len(right_rows) else ("", "", "", "")
         html_rows.append(
             "<tr>"
-            f"<td>{left[0]}</td><td>{left[1]}</td><td>{left[2]}</td>"
-            f"<td>{right[0]}</td><td>{right[1]}</td><td>{right[2]}</td>"
+            f"<td><div class=\"param-name\">{left[0]}</div><div class=\"param-desc\">{left[3]}</div></td>"
+            f"<td>{left[1]}</td><td>{left[2]}</td>"
+            f"<td><div class=\"param-name\">{right[0]}</div><div class=\"param-desc\">{right[3]}</div></td>"
+            f"<td>{right[1]}</td><td>{right[2]}</td>"
             "</tr>"
         )
 
@@ -383,18 +392,18 @@ def compute_mass_flow_outputs(inputs):
     re_m = safe_divide(rho_m * u_m * d, mu_m)
 
     outputs = [
-        ("A", area, "m&sup2;"),
-        ("&rho;<sub>G</sub>", rho_g, "kg/m&sup3;"),
-        ("q<sub>L</sub>", q_l, "m&sup3;/s"),
-        ("q<sub>G</sub>", q_g, "m&sup3;/s"),
-        ("q<sub>T</sub>", q_t, "m&sup3;/s"),
-        ("&alpha;<sub>in</sub>", alpha_in, "-"),
-        ("U<sub>sl</sub>", u_sl, "m/s"),
-        ("U<sub>sg</sub>", u_sg, "m/s"),
-        ("U<sub>m</sub>", u_m, "m/s"),
-        ("&rho;<sub>m</sub>", rho_m, "kg/m&sup3;"),
-        ("&mu;<sub>m</sub>", mu_m, "Pa&#183;s"),
-        ("Re<sub>m</sub>", re_m, "-"),
+        ("A", area, "m&sup2;", "Pipe cross-sectional area"),
+        ("&rho;<sub>G</sub>", rho_g, "kg/m&sup3;", "Gas density"),
+        ("q<sub>L</sub>", q_l, "m&sup3;/s", "Liquid volumetric flow rate"),
+        ("q<sub>G</sub>", q_g, "m&sup3;/s", "Gas volumetric flow rate"),
+        ("q<sub>T</sub>", q_t, "m&sup3;/s", "Total volumetric flow rate"),
+        ("&alpha;<sub>in</sub>", alpha_in, "-", "Gas volume fraction (inlet)"),
+        ("U<sub>sl</sub>", u_sl, "m/s", "Superficial liquid velocity"),
+        ("U<sub>sg</sub>", u_sg, "m/s", "Superficial gas velocity"),
+        ("U<sub>m</sub>", u_m, "m/s", "Mixture velocity"),
+        ("&rho;<sub>m</sub>", rho_m, "kg/m&sup3;", "Mixture density"),
+        ("&mu;<sub>m</sub>", mu_m, "Pa&#183;s", "Mixture viscosity"),
+        ("Re<sub>m</sub>", re_m, "-", "Mixture Reynolds number"),
     ]
 
     return outputs, u_sg, u_sl
@@ -441,29 +450,29 @@ def compute_volume_flow_outputs(inputs):
     re_m = safe_divide(rho_m * u_m * d, mu_m)
 
     outputs = [
-        ("A", area, "m&sup2;"),
-        ("&rho;<sub>G</sub>", rho_g, "kg/m&sup3;"),
-        ("q<sub>L</sub>", q_l, "m&sup3;/s"),
-        ("q<sub>G</sub>", q_g, "m&sup3;/s"),
-        ("m&#775;<sub>L</sub>", mdot_l, "kg/s"),
-        ("m&#775;<sub>G</sub>", mdot_g, "kg/s"),
-        ("q<sub>T</sub>", q_t, "m&sup3;/s"),
-        ("&alpha;<sub>in</sub> (from q)", alpha_in_q, "-"),
-        ("U<sub>m</sub>", u_m, "m/s"),
+        ("A", area, "m&sup2;", "Pipe cross-sectional area"),
+        ("&rho;<sub>G</sub>", rho_g, "kg/m&sup3;", "Gas density"),
+        ("q<sub>L</sub>", q_l, "m&sup3;/s", "Liquid volumetric flow rate"),
+        ("q<sub>G</sub>", q_g, "m&sup3;/s", "Gas volumetric flow rate"),
+        ("m&#775;<sub>L</sub>", mdot_l, "kg/s", "Liquid mass flow rate"),
+        ("m&#775;<sub>G</sub>", mdot_g, "kg/s", "Gas mass flow rate"),
+        ("q<sub>T</sub>", q_t, "m&sup3;/s", "Total volumetric flow rate"),
+        ("&alpha;<sub>in</sub> (from q)", alpha_in_q, "-", "Gas volume fraction (from flow rates)"),
+        ("U<sub>m</sub>", u_m, "m/s", "Mixture velocity"),
     ]
 
     if a_l is not None and a_g is not None:
         outputs.extend([
-            ("A<sub>L</sub>", a_l, "m&sup2;"),
-            ("A<sub>G</sub>", a_g, "m&sup2;"),
-            ("&alpha;<sub>in</sub> (from areas)", alpha_in_area, "-"),
-            ("S", s, "-"),
+            ("A<sub>L</sub>", a_l, "m&sup2;", "Liquid cross-sectional area"),
+            ("A<sub>G</sub>", a_g, "m&sup2;", "Gas cross-sectional area"),
+            ("&alpha;<sub>in</sub> (from areas)", alpha_in_area, "-", "Gas volume fraction (from areas)"),
+            ("S", s, "-", "Slip ratio"),
         ])
 
     outputs.extend([
-        ("&rho;<sub>m</sub>", rho_m, "kg/m&sup3;"),
-        ("&mu;<sub>m</sub>", mu_m, "Pa&#183;s"),
-        ("Re<sub>m</sub>", re_m, "-"),
+        ("&rho;<sub>m</sub>", rho_m, "kg/m&sup3;", "Mixture density"),
+        ("&mu;<sub>m</sub>", mu_m, "Pa&#183;s", "Mixture viscosity"),
+        ("Re<sub>m</sub>", re_m, "-", "Mixture Reynolds number"),
     ])
 
     return outputs, u_sl_input, u_sg_input, u_sl, u_sg, u_sg, u_sl
@@ -578,6 +587,13 @@ st.markdown("""
         font-size: 0.95rem;
         margin-bottom: 6px;
     }
+    .input-desc {
+        color: var(--hbku-slate);
+        font-size: 0.78rem;
+        margin-top: -2px;
+        margin-bottom: 8px;
+        opacity: 0.85;
+    }
 
     .cta-card {
         background: #ffffff;
@@ -676,6 +692,16 @@ st.markdown("""
         color: var(--hbku-slate);
         border-bottom: 1px solid rgba(15, 23, 42, 0.06);
         vertical-align: top;
+    }
+    .param-name {
+        color: var(--hbku-ink);
+        font-weight: 600;
+    }
+    .param-desc {
+        color: var(--hbku-slate);
+        font-size: 0.75rem;
+        margin-top: 2px;
+        opacity: 0.8;
     }
 
     .derived-table tr:last-child td {
@@ -1014,6 +1040,7 @@ elif page == "Classify Flow Regime":
                         mdot_l = labeled_number_input(
                             "m&#775;<sub>L</sub> (kg/s)",
                             "m_dot_L (kg/s)",
+                            "Liquid mass flow rate",
                             min_value=0.0,
                             value=0.5,
                             step=0.1
@@ -1021,6 +1048,7 @@ elif page == "Classify Flow Regime":
                         p_in = labeled_number_input(
                             "P<sub>in</sub> (Pa)",
                             "P_in (Pa)",
+                            "Inlet pressure",
                             min_value=0.0,
                             value=101325.0,
                             step=100.0
@@ -1028,6 +1056,7 @@ elif page == "Classify Flow Regime":
                         rho_l = labeled_number_input(
                             "&rho;<sub>L</sub> (kg/m&sup3;)",
                             "rho_L (kg/m^3)",
+                            "Liquid density",
                             min_value=0.0,
                             value=1000.0,
                             step=10.0
@@ -1035,6 +1064,7 @@ elif page == "Classify Flow Regime":
                         mu_l = labeled_number_input(
                             "&mu;<sub>L</sub> (Pa&#183;s)",
                             "mu_L (Pa*s)",
+                            "Liquid dynamic viscosity",
                             min_value=0.0,
                             value=0.001,
                             step=0.0001,
@@ -1044,6 +1074,7 @@ elif page == "Classify Flow Regime":
                         mdot_g = labeled_number_input(
                             "m&#775;<sub>G</sub> (kg/s)",
                             "m_dot_G (kg/s)",
+                            "Gas mass flow rate",
                             min_value=0.0,
                             value=0.1,
                             step=0.05
@@ -1051,6 +1082,7 @@ elif page == "Classify Flow Regime":
                         t = labeled_number_input(
                             "T (K)",
                             "T (K)",
+                            "Temperature",
                             min_value=0.0,
                             value=298.0,
                             step=1.0
@@ -1058,6 +1090,7 @@ elif page == "Classify Flow Regime":
                         mu_g = labeled_number_input(
                             "&mu;<sub>G</sub> (Pa&#183;s)",
                             "mu_G (Pa*s)",
+                            "Gas dynamic viscosity",
                             min_value=0.0,
                             value=1.8e-5,
                             step=1e-6,
@@ -1066,6 +1099,7 @@ elif page == "Classify Flow Regime":
                         d = labeled_number_input(
                             "D (m)",
                             "D (m)",
+                            "Pipe inner diameter",
                             min_value=0.0,
                             value=0.05,
                             step=0.005,
@@ -1075,6 +1109,7 @@ elif page == "Classify Flow Regime":
                         z = labeled_number_input(
                             "Z (-)",
                             "Z (-)",
+                            "Gas compressibility factor",
                             min_value=0.0,
                             value=1.0,
                             step=0.01
@@ -1082,6 +1117,7 @@ elif page == "Classify Flow Regime":
                         r_g = labeled_number_input(
                             "R<sub>g</sub> (J&#183;kg<sup>-1</sup>&#183;K<sup>-1</sup>)",
                             "R_g (J*kg^-1*K^-1)",
+                            "Specific gas constant",
                             min_value=0.0,
                             value=287.0,
                             step=1.0,
@@ -1102,6 +1138,7 @@ elif page == "Classify Flow Regime":
                         q_l = labeled_number_input(
                             "q<sub>L</sub> (m&sup3;/s)",
                             "q_L (m^3/s)",
+                            "Liquid volumetric flow rate",
                             min_value=0.0,
                             value=default_q_l,
                             step=1e-4,
@@ -1110,6 +1147,7 @@ elif page == "Classify Flow Regime":
                         u_sl = labeled_number_input(
                             "U<sub>sl</sub> (m/s)",
                             "U_sl (m/s)",
+                            "Superficial liquid velocity",
                             min_value=0.0,
                             value=default_u_sl,
                             step=0.05
@@ -1117,6 +1155,7 @@ elif page == "Classify Flow Regime":
                         p_in = labeled_number_input(
                             "P<sub>in</sub> (Pa)",
                             "P_in (Pa)",
+                            "Inlet pressure",
                             min_value=0.0,
                             value=101325.0,
                             step=100.0
@@ -1124,6 +1163,7 @@ elif page == "Classify Flow Regime":
                         rho_l = labeled_number_input(
                             "&rho;<sub>L</sub> (kg/m&sup3;)",
                             "rho_L (kg/m^3)",
+                            "Liquid density",
                             min_value=0.0,
                             value=1000.0,
                             step=10.0
@@ -1132,6 +1172,7 @@ elif page == "Classify Flow Regime":
                         q_g = labeled_number_input(
                             "q<sub>G</sub> (m&sup3;/s)",
                             "q_G (m^3/s)",
+                            "Gas volumetric flow rate",
                             min_value=0.0,
                             value=default_q_g,
                             step=1e-4,
@@ -1140,6 +1181,7 @@ elif page == "Classify Flow Regime":
                         u_sg = labeled_number_input(
                             "U<sub>sg</sub> (m/s)",
                             "U_sg (m/s)",
+                            "Superficial gas velocity",
                             min_value=0.0,
                             value=default_u_sg,
                             step=0.05
@@ -1147,6 +1189,7 @@ elif page == "Classify Flow Regime":
                         t = labeled_number_input(
                             "T (K)",
                             "T (K)",
+                            "Temperature",
                             min_value=0.0,
                             value=298.0,
                             step=1.0
@@ -1154,6 +1197,7 @@ elif page == "Classify Flow Regime":
                         mu_l = labeled_number_input(
                             "&mu;<sub>L</sub> (Pa&#183;s)",
                             "mu_L (Pa*s)",
+                            "Liquid dynamic viscosity",
                             min_value=0.0,
                             value=0.001,
                             step=0.0001,
@@ -1163,6 +1207,7 @@ elif page == "Classify Flow Regime":
                         z = labeled_number_input(
                             "Z (-)",
                             "Z (-)",
+                            "Gas compressibility factor",
                             min_value=0.0,
                             value=1.0,
                             step=0.01
@@ -1170,6 +1215,7 @@ elif page == "Classify Flow Regime":
                         mu_g = labeled_number_input(
                             "&mu;<sub>G</sub> (Pa&#183;s)",
                             "mu_G (Pa*s)",
+                            "Gas dynamic viscosity",
                             min_value=0.0,
                             value=1.8e-5,
                             step=1e-6,
@@ -1178,6 +1224,7 @@ elif page == "Classify Flow Regime":
                         d = labeled_number_input(
                             "D (m)",
                             "D (m)",
+                            "Pipe inner diameter",
                             min_value=0.0,
                             value=default_d,
                             step=0.005,
@@ -1186,6 +1233,7 @@ elif page == "Classify Flow Regime":
                         r_g = labeled_number_input(
                             "R<sub>g</sub> (J&#183;kg<sup>-1</sup>&#183;K<sup>-1</sup>)",
                             "R_g (J*kg^-1*K^-1)",
+                            "Specific gas constant",
                             min_value=0.0,
                             value=287.0,
                             step=1.0,
@@ -1201,6 +1249,7 @@ elif page == "Classify Flow Regime":
                             u_l = labeled_number_input(
                                 "u<sub>L</sub> (m/s)",
                                 "u_L (m/s)",
+                                "Liquid phase velocity",
                                 min_value=0.0,
                                 value=0.5,
                                 step=0.05
@@ -1209,6 +1258,7 @@ elif page == "Classify Flow Regime":
                             u_g = labeled_number_input(
                                 "u<sub>G</sub> (m/s)",
                                 "u_G (m/s)",
+                                "Gas phase velocity",
                                 min_value=0.0,
                                 value=0.5,
                                 step=0.05
@@ -1219,6 +1269,7 @@ elif page == "Classify Flow Regime":
                         direct_vsg = labeled_number_input(
                             "Superficial Gas Velocity (V<sub>sg</sub>) [m/s]",
                             "Superficial Gas Velocity (Vsg) [m/s]",
+                            "Gas superficial velocity input",
                             min_value=0.0,
                             max_value=10.0,
                             value=0.5,
@@ -1228,6 +1279,7 @@ elif page == "Classify Flow Regime":
                         direct_vsl = labeled_number_input(
                             "Superficial Liquid Velocity (V<sub>sl</sub>) [m/s]",
                             "Superficial Liquid Velocity (Vsl) [m/s]",
+                            "Liquid superficial velocity input",
                             min_value=0.0,
                             max_value=10.0,
                             value=0.5,
