@@ -280,6 +280,10 @@ def format_value(value):
         return "n/a"
     return f"{value:.6g}"
 
+def labeled_number_input(label_html, label_plain, **kwargs):
+    st.markdown(f"<div class=\"input-label\">{label_html}</div>", unsafe_allow_html=True)
+    return st.number_input(label_plain, label_visibility="collapsed", key=label_plain, **kwargs)
+
 def build_output_table(
     rows,
     vsg_pred=None,
@@ -315,12 +319,12 @@ def build_output_table(
         metrics_html = (
             '<div class="derived-metrics">'
             '<div class="derived-metric">'
-            '<div class="metric-label">Vsg (Predicted)</div>'
+            '<div class="metric-label">V<sub>sg</sub> (Predicted)</div>'
             f'<div class="metric-value">{format_value(vsg_pred)} m/s</div>'
             f'<div class="metric-delta">{vsg_delta_text}</div>'
             '</div>'
             '<div class="derived-metric">'
-            '<div class="metric-label">Vsl (Predicted)</div>'
+            '<div class="metric-label">V<sub>sl</sub> (Predicted)</div>'
             f'<div class="metric-value">{format_value(vsl_pred)} m/s</div>'
             f'<div class="metric-delta">{vsl_delta_text}</div>'
             '</div>'
@@ -379,18 +383,18 @@ def compute_mass_flow_outputs(inputs):
     re_m = safe_divide(rho_m * u_m * d, mu_m)
 
     outputs = [
-        ("A", area, "m^2"),
-        ("rho_G", rho_g, "kg/m^3"),
-        ("q_L", q_l, "m^3/s"),
-        ("q_G", q_g, "m^3/s"),
-        ("q_T", q_t, "m^3/s"),
-        ("alpha_in", alpha_in, "-"),
-        ("U_sl", u_sl, "m/s"),
-        ("U_sg", u_sg, "m/s"),
-        ("U_m", u_m, "m/s"),
-        ("rho_m", rho_m, "kg/m^3"),
-        ("mu_m", mu_m, "Pa*s"),
-        ("Re_m", re_m, "-"),
+        ("A", area, "m&sup2;"),
+        ("&rho;<sub>G</sub>", rho_g, "kg/m&sup3;"),
+        ("q<sub>L</sub>", q_l, "m&sup3;/s"),
+        ("q<sub>G</sub>", q_g, "m&sup3;/s"),
+        ("q<sub>T</sub>", q_t, "m&sup3;/s"),
+        ("&alpha;<sub>in</sub>", alpha_in, "-"),
+        ("U<sub>sl</sub>", u_sl, "m/s"),
+        ("U<sub>sg</sub>", u_sg, "m/s"),
+        ("U<sub>m</sub>", u_m, "m/s"),
+        ("&rho;<sub>m</sub>", rho_m, "kg/m&sup3;"),
+        ("&mu;<sub>m</sub>", mu_m, "Pa&#183;s"),
+        ("Re<sub>m</sub>", re_m, "-"),
     ]
 
     return outputs, u_sg, u_sl
@@ -437,29 +441,29 @@ def compute_volume_flow_outputs(inputs):
     re_m = safe_divide(rho_m * u_m * d, mu_m)
 
     outputs = [
-        ("A", area, "m^2"),
-        ("rho_G", rho_g, "kg/m^3"),
-        ("q_L", q_l, "m^3/s"),
-        ("q_G", q_g, "m^3/s"),
-        ("mdot_L", mdot_l, "kg/s"),
-        ("mdot_G", mdot_g, "kg/s"),
-        ("q_T", q_t, "m^3/s"),
-        ("alpha_in (from q)", alpha_in_q, "-"),
-        ("U_m", u_m, "m/s"),
+        ("A", area, "m&sup2;"),
+        ("&rho;<sub>G</sub>", rho_g, "kg/m&sup3;"),
+        ("q<sub>L</sub>", q_l, "m&sup3;/s"),
+        ("q<sub>G</sub>", q_g, "m&sup3;/s"),
+        ("m&#775;<sub>L</sub>", mdot_l, "kg/s"),
+        ("m&#775;<sub>G</sub>", mdot_g, "kg/s"),
+        ("q<sub>T</sub>", q_t, "m&sup3;/s"),
+        ("&alpha;<sub>in</sub> (from q)", alpha_in_q, "-"),
+        ("U<sub>m</sub>", u_m, "m/s"),
     ]
 
     if a_l is not None and a_g is not None:
         outputs.extend([
-            ("A_L", a_l, "m^2"),
-            ("A_G", a_g, "m^2"),
-            ("alpha_in (from areas)", alpha_in_area, "-"),
+            ("A<sub>L</sub>", a_l, "m&sup2;"),
+            ("A<sub>G</sub>", a_g, "m&sup2;"),
+            ("&alpha;<sub>in</sub> (from areas)", alpha_in_area, "-"),
             ("S", s, "-"),
         ])
 
     outputs.extend([
-        ("rho_m", rho_m, "kg/m^3"),
-        ("mu_m", mu_m, "Pa*s"),
-        ("Re_m", re_m, "-"),
+        ("&rho;<sub>m</sub>", rho_m, "kg/m&sup3;"),
+        ("&mu;<sub>m</sub>", mu_m, "Pa&#183;s"),
+        ("Re<sub>m</sub>", re_m, "-"),
     ])
 
     return outputs, u_sl_input, u_sg_input, u_sl, u_sg, u_sg, u_sl
@@ -567,6 +571,12 @@ st.markdown("""
 
     .stButton > button * {
         color: #ffffff !important;
+    }
+
+    .input-label {
+        color: var(--hbku-slate);
+        font-size: 0.95rem;
+        margin-bottom: 6px;
     }
 
     .cta-card {
@@ -1001,18 +1011,76 @@ elif page == "Classify Flow Regime":
                 if input_mode == "Mass flow rates":
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        mdot_l = st.number_input("m_dot_L (kg/s)", min_value=0.0, value=0.5, step=0.1)
-                        p_in = st.number_input("P_in (Pa)", min_value=0.0, value=101325.0, step=100.0)
-                        rho_l = st.number_input("rho_L (kg/m^3)", min_value=0.0, value=1000.0, step=10.0)
-                        mu_l = st.number_input("mu_L (Pa*s)", min_value=0.0, value=0.001, step=0.0001, format="%.6f")
+                        mdot_l = labeled_number_input(
+                            "m&#775;<sub>L</sub> (kg/s)",
+                            "m_dot_L (kg/s)",
+                            min_value=0.0,
+                            value=0.5,
+                            step=0.1
+                        )
+                        p_in = labeled_number_input(
+                            "P<sub>in</sub> (Pa)",
+                            "P_in (Pa)",
+                            min_value=0.0,
+                            value=101325.0,
+                            step=100.0
+                        )
+                        rho_l = labeled_number_input(
+                            "&rho;<sub>L</sub> (kg/m&sup3;)",
+                            "rho_L (kg/m^3)",
+                            min_value=0.0,
+                            value=1000.0,
+                            step=10.0
+                        )
+                        mu_l = labeled_number_input(
+                            "&mu;<sub>L</sub> (Pa&#183;s)",
+                            "mu_L (Pa*s)",
+                            min_value=0.0,
+                            value=0.001,
+                            step=0.0001,
+                            format="%.6f"
+                        )
                     with col2:
-                        mdot_g = st.number_input("m_dot_G (kg/s)", min_value=0.0, value=0.1, step=0.05)
-                        t = st.number_input("T (K)", min_value=0.0, value=298.0, step=1.0)
-                        mu_g = st.number_input("mu_G (Pa*s)", min_value=0.0, value=1.8e-5, step=1e-6, format="%.7f")
-                        d = st.number_input("D (m)", min_value=0.0, value=0.05, step=0.005, format="%.4f")
+                        mdot_g = labeled_number_input(
+                            "m&#775;<sub>G</sub> (kg/s)",
+                            "m_dot_G (kg/s)",
+                            min_value=0.0,
+                            value=0.1,
+                            step=0.05
+                        )
+                        t = labeled_number_input(
+                            "T (K)",
+                            "T (K)",
+                            min_value=0.0,
+                            value=298.0,
+                            step=1.0
+                        )
+                        mu_g = labeled_number_input(
+                            "&mu;<sub>G</sub> (Pa&#183;s)",
+                            "mu_G (Pa*s)",
+                            min_value=0.0,
+                            value=1.8e-5,
+                            step=1e-6,
+                            format="%.7f"
+                        )
+                        d = labeled_number_input(
+                            "D (m)",
+                            "D (m)",
+                            min_value=0.0,
+                            value=0.05,
+                            step=0.005,
+                            format="%.4f"
+                        )
                     with col3:
-                        z = st.number_input("Z (-)", min_value=0.0, value=1.0, step=0.01)
-                        r_g = st.number_input(
+                        z = labeled_number_input(
+                            "Z (-)",
+                            "Z (-)",
+                            min_value=0.0,
+                            value=1.0,
+                            step=0.01
+                        )
+                        r_g = labeled_number_input(
+                            "R<sub>g</sub> (J&#183;kg<sup>-1</sup>&#183;K<sup>-1</sup>)",
                             "R_g (J*kg^-1*K^-1)",
                             min_value=0.0,
                             value=287.0,
@@ -1031,20 +1099,92 @@ elif page == "Classify Flow Regime":
                     st.caption("U_sl and U_sg are used as reference checks. Computations use q_L and q_G.")
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        q_l = st.number_input("q_L (m^3/s)", min_value=0.0, value=default_q_l, step=1e-4, format="%.6f")
-                        u_sl = st.number_input("U_sl (m/s)", min_value=0.0, value=default_u_sl, step=0.05)
-                        p_in = st.number_input("P_in (Pa)", min_value=0.0, value=101325.0, step=100.0)
-                        rho_l = st.number_input("rho_L (kg/m^3)", min_value=0.0, value=1000.0, step=10.0)
+                        q_l = labeled_number_input(
+                            "q<sub>L</sub> (m&sup3;/s)",
+                            "q_L (m^3/s)",
+                            min_value=0.0,
+                            value=default_q_l,
+                            step=1e-4,
+                            format="%.6f"
+                        )
+                        u_sl = labeled_number_input(
+                            "U<sub>sl</sub> (m/s)",
+                            "U_sl (m/s)",
+                            min_value=0.0,
+                            value=default_u_sl,
+                            step=0.05
+                        )
+                        p_in = labeled_number_input(
+                            "P<sub>in</sub> (Pa)",
+                            "P_in (Pa)",
+                            min_value=0.0,
+                            value=101325.0,
+                            step=100.0
+                        )
+                        rho_l = labeled_number_input(
+                            "&rho;<sub>L</sub> (kg/m&sup3;)",
+                            "rho_L (kg/m^3)",
+                            min_value=0.0,
+                            value=1000.0,
+                            step=10.0
+                        )
                     with col2:
-                        q_g = st.number_input("q_G (m^3/s)", min_value=0.0, value=default_q_g, step=1e-4, format="%.6f")
-                        u_sg = st.number_input("U_sg (m/s)", min_value=0.0, value=default_u_sg, step=0.05)
-                        t = st.number_input("T (K)", min_value=0.0, value=298.0, step=1.0)
-                        mu_l = st.number_input("mu_L (Pa*s)", min_value=0.0, value=0.001, step=0.0001, format="%.6f")
+                        q_g = labeled_number_input(
+                            "q<sub>G</sub> (m&sup3;/s)",
+                            "q_G (m^3/s)",
+                            min_value=0.0,
+                            value=default_q_g,
+                            step=1e-4,
+                            format="%.6f"
+                        )
+                        u_sg = labeled_number_input(
+                            "U<sub>sg</sub> (m/s)",
+                            "U_sg (m/s)",
+                            min_value=0.0,
+                            value=default_u_sg,
+                            step=0.05
+                        )
+                        t = labeled_number_input(
+                            "T (K)",
+                            "T (K)",
+                            min_value=0.0,
+                            value=298.0,
+                            step=1.0
+                        )
+                        mu_l = labeled_number_input(
+                            "&mu;<sub>L</sub> (Pa&#183;s)",
+                            "mu_L (Pa*s)",
+                            min_value=0.0,
+                            value=0.001,
+                            step=0.0001,
+                            format="%.6f"
+                        )
                     with col3:
-                        z = st.number_input("Z (-)", min_value=0.0, value=1.0, step=0.01)
-                        mu_g = st.number_input("mu_G (Pa*s)", min_value=0.0, value=1.8e-5, step=1e-6, format="%.7f")
-                        d = st.number_input("D (m)", min_value=0.0, value=default_d, step=0.005, format="%.4f")
-                        r_g = st.number_input(
+                        z = labeled_number_input(
+                            "Z (-)",
+                            "Z (-)",
+                            min_value=0.0,
+                            value=1.0,
+                            step=0.01
+                        )
+                        mu_g = labeled_number_input(
+                            "&mu;<sub>G</sub> (Pa&#183;s)",
+                            "mu_G (Pa*s)",
+                            min_value=0.0,
+                            value=1.8e-5,
+                            step=1e-6,
+                            format="%.7f"
+                        )
+                        d = labeled_number_input(
+                            "D (m)",
+                            "D (m)",
+                            min_value=0.0,
+                            value=default_d,
+                            step=0.005,
+                            format="%.4f"
+                        )
+                        r_g = labeled_number_input(
+                            "R<sub>g</sub> (J&#183;kg<sup>-1</sup>&#183;K<sup>-1</sup>)",
                             "R_g (J*kg^-1*K^-1)",
                             min_value=0.0,
                             value=287.0,
@@ -1058,13 +1198,26 @@ elif page == "Classify Flow Regime":
                     if use_phase_velocities:
                         col4, col5 = st.columns(2)
                         with col4:
-                            u_l = st.number_input("u_L (m/s)", min_value=0.0, value=0.5, step=0.05)
+                            u_l = labeled_number_input(
+                                "u<sub>L</sub> (m/s)",
+                                "u_L (m/s)",
+                                min_value=0.0,
+                                value=0.5,
+                                step=0.05
+                            )
                         with col5:
-                            u_g = st.number_input("u_G (m/s)", min_value=0.0, value=0.5, step=0.05)
+                            u_g = labeled_number_input(
+                                "u<sub>G</sub> (m/s)",
+                                "u_G (m/s)",
+                                min_value=0.0,
+                                value=0.5,
+                                step=0.05
+                            )
                 else:
                     col1, col2 = st.columns(2)
                     with col1:
-                        direct_vsg = st.number_input(
+                        direct_vsg = labeled_number_input(
+                            "Superficial Gas Velocity (V<sub>sg</sub>) [m/s]",
                             "Superficial Gas Velocity (Vsg) [m/s]",
                             min_value=0.0,
                             max_value=10.0,
@@ -1072,7 +1225,8 @@ elif page == "Classify Flow Regime":
                             step=0.1
                         )
                     with col2:
-                        direct_vsl = st.number_input(
+                        direct_vsl = labeled_number_input(
+                            "Superficial Liquid Velocity (V<sub>sl</sub>) [m/s]",
                             "Superficial Liquid Velocity (Vsl) [m/s]",
                             min_value=0.0,
                             max_value=10.0,
