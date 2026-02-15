@@ -280,7 +280,15 @@ def format_value(value):
         return "n/a"
     return f"{value:.6g}"
 
-def build_output_table(rows, vsg_pred=None, vsl_pred=None, vsg_input=None, vsl_input=None):
+def build_output_table(
+    rows,
+    vsg_pred=None,
+    vsl_pred=None,
+    vsg_input=None,
+    vsl_input=None,
+    show_table=True,
+    show_title=True,
+):
     rows_formatted = [(name, format_value(value), units) for name, value, units in rows]
     midpoint = (len(rows_formatted) + 1) // 2
     left_rows = rows_formatted[:midpoint]
@@ -319,20 +327,27 @@ def build_output_table(rows, vsg_pred=None, vsl_pred=None, vsg_input=None, vsl_i
             '</div>'
         )
 
+    title_html = '<div class="derived-title">Derived Flow Calculations</div>' if show_title else ""
+    table_html = ""
+    if show_table:
+        table_html = (
+            '<table class="derived-table">'
+            '<thead>'
+            '<tr>'
+            '<th>Parameter</th><th>Value</th><th>Units</th>'
+            '<th>Parameter</th><th>Value</th><th>Units</th>'
+            '</tr>'
+            '</thead>'
+            '<tbody>'
+            f"{''.join(html_rows)}"
+            '</tbody>'
+            '</table>'
+        )
+
     html = (
         '<div class="derived-card">'
-        '<div class="derived-title">Derived Flow Calculations</div>'
-        '<table class="derived-table">'
-        '<thead>'
-        '<tr>'
-        '<th>Parameter</th><th>Value</th><th>Units</th>'
-        '<th>Parameter</th><th>Value</th><th>Units</th>'
-        '</tr>'
-        '</thead>'
-        '<tbody>'
-        f"{''.join(html_rows)}"
-        '</tbody>'
-        '</table>'
+        f"{title_html}"
+        f"{table_html}"
         f"{metrics_html}"
         '</div>'
     )
@@ -1202,13 +1217,15 @@ elif page == "Classify Flow Regime":
                                 else:
                                     st.warning(f"⚠️ Visualization not found for {predicted_class_name}")
                             with derived_col:
-                                if derived_outputs:
+                                if derived_outputs or input_mode == "Direct Vsg/Vsl":
                                     build_output_table(
                                         derived_outputs,
                                         vsg_pred=result['vsg_predicted'],
                                         vsl_pred=result['vsl_predicted'],
                                         vsg_input=vsg_input,
-                                        vsl_input=vsl_input
+                                        vsl_input=vsl_input,
+                                        show_table=(input_mode != "Direct Vsg/Vsl"),
+                                        show_title=(input_mode != "Direct Vsg/Vsl")
                                     )
 
         else:
