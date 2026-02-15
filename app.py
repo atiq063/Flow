@@ -176,7 +176,7 @@ def extract_features(pressure_window):
     
     return np.array(features)
 
-def predict_flow_regime(model, scalers, pressure_data, vsg=0.5, vsl=0.5):
+def predict_flow_regime(model, scalers, pressure_data, vsg, vsl):
     """Make prediction using the trained model"""
     try:
         # Check if scalers are available
