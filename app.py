@@ -247,7 +247,7 @@ def predict_flow_regime(model, scalers, pressure_data, vsg, vsl):
         st.exception(e)
         return None
 
-def render_media_card(media_path, title, caption):
+def render_media_card(media_path, title, caption, card_class="media-card"):
     """Render an image or GIF inside a styled card."""
     try:
         with open(media_path, "rb") as f:
@@ -257,7 +257,7 @@ def render_media_card(media_path, title, caption):
         mime = "image/gif" if extension == ".gif" else "image/png"
         st.markdown(
             f"""
-            <div class="media-card">
+            <div class="{card_class}">
                 <div class="media-title">{title}</div>
                 <img src="data:{mime};base64,{media_b64}" alt="{caption}">
                 <div class="media-caption">{caption}</div>
@@ -638,6 +638,14 @@ st.markdown("""
         border-radius: 12px;
     }
 
+    .gallery-card {
+        min-height: 460px;
+    }
+
+    .gallery-card img {
+        height: 280px;
+    }
+
     .media-title {
         font-family: "Crimson Pro", "Times New Roman", serif;
         font-size: 1.2rem;
@@ -908,7 +916,38 @@ if page == "Home":
     </ul>
     </div>
     """, unsafe_allow_html=True)
-    
+
+    st.subheader("Flow Regime Gallery")
+    st.markdown("""
+    <div class="justified-text">
+    Explore representative flow patterns captured from experiments. These short GIFs illustrate the visual
+    differences between dispersed, plug, and slug flow regimes.
+    </div>
+    """, unsafe_allow_html=True)
+
+    gallery_col1, gallery_col2, gallery_col3 = st.columns(3)
+    with gallery_col1:
+        render_media_card(
+            "video_library/Dispersed-Flow/Dispersed-Flow.gif",
+            "Dispersed Flow",
+            "Fine gas bubbles distributed throughout the liquid.",
+            card_class="media-card gallery-card",
+        )
+    with gallery_col2:
+        render_media_card(
+            "video_library/Plug-Flow/Plug-Flow.gif",
+            "Plug Flow",
+            "Elongated gas plugs separated by liquid segments.",
+            card_class="media-card gallery-card",
+        )
+    with gallery_col3:
+        render_media_card(
+            "video_library/Slug-Flow/Slug-Flow.gif",
+            "Slug Flow",
+            "Intermittent gas pockets with liquid slugs.",
+            card_class="media-card gallery-card",
+        )
+
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.image("assets/flow-regime.png", caption="Common Multiphase Flow Regimes", width="stretch")
