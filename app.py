@@ -938,8 +938,6 @@ if page == "Home":
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.image("assets/flow-regime.png", caption="Common Multiphase Flow Regimes", width="stretch")
-        
-    """, unsafe_allow_html=True)
     
     st.subheader("Impact of Flow Regimes in Multiphase Systems")
     st.markdown("""
