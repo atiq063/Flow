@@ -890,7 +890,7 @@ if page == "Home":
             Advanced Flow Regime Classification
         </div>
         <div class="card-footer">
-            This research is led by Dr. Amith Khandakar and Dr. Mohammad Azizur Rahman
+            This research is led by Dr. Mohammad Azizur Rahman and Dr. Amith Khandakar
         </div>
     </div>
     """, unsafe_allow_html=True)
