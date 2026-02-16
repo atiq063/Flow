@@ -925,10 +925,6 @@ if page == "Home":
             "Intermittent gas pockets with liquid slugs.",
             card_class="media-card gallery-card",
         )
-
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.image("assets/flow-regime.png", caption="Common Multiphase Flow Regimes", width="stretch")
     
     st.subheader("About Multiphase Flow Regime")
     st.markdown("""
@@ -937,6 +933,12 @@ if page == "Home":
     within pipelines or process systems. Understanding the flow regime (such as bubbly, slug, annular, or dispersed flows)
     is critical because it affects pressure drop, heat transfer, and mass transport efficiency.
     </div>
+
+    """, unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.image("assets/flow-regime.png", caption="Common Multiphase Flow Regimes", width="stretch")
+        
     """, unsafe_allow_html=True)
     
     st.subheader("Impact of Flow Regimes in Multiphase Systems")
