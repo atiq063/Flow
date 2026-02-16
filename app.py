@@ -894,28 +894,6 @@ if page == "Home":
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
-    st.subheader("About Multiphase Flow Regime")
-    st.markdown("""
-    <div class="justified-text">
-    Multiphase flow refers to the simultaneous flow of materials with different phases (gas, liquid, and/or solid)
-    within pipelines or process systems. Understanding the flow regime (such as bubbly, slug, annular, or dispersed flows)
-    is critical because it affects pressure drop, heat transfer, and mass transport efficiency.
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.subheader("Impact of Flow Regimes in Multiphase Systems")
-    st.markdown("""
-    <div class="justified-text">
-    Different flow regimes have a significant impact on system performance and safety:
-    <ul>
-    <li><strong>Pressure Drop:</strong> Certain regimes (like slug flow) can cause large fluctuations in pressure.</li>
-    <li><strong>Separation Efficiency:</strong> Flow regime affects the performance of separators.</li>
-    <li><strong>Equipment Design:</strong> Correct prediction of flow regime is essential for pumps, pipelines, and reactors.</li>
-    <li><strong>Operational Safety:</strong> Unstable flow regimes can lead to erosion, vibration, and operational hazards.</li>
-    </ul>
-    </div>
-    """, unsafe_allow_html=True)
 
     st.subheader("Flow Regime Gallery")
     st.markdown("""
@@ -951,6 +929,29 @@ if page == "Home":
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.image("assets/flow-regime.png", caption="Common Multiphase Flow Regimes", width="stretch")
+    
+    st.subheader("About Multiphase Flow Regime")
+    st.markdown("""
+    <div class="justified-text">
+    Multiphase flow refers to the simultaneous flow of materials with different phases (gas, liquid, and/or solid)
+    within pipelines or process systems. Understanding the flow regime (such as bubbly, slug, annular, or dispersed flows)
+    is critical because it affects pressure drop, heat transfer, and mass transport efficiency.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.subheader("Impact of Flow Regimes in Multiphase Systems")
+    st.markdown("""
+    <div class="justified-text">
+    Different flow regimes have a significant impact on system performance and safety:
+    <ul>
+    <li><strong>Pressure Drop:</strong> Certain regimes (like slug flow) can cause large fluctuations in pressure.</li>
+    <li><strong>Separation Efficiency:</strong> Flow regime affects the performance of separators.</li>
+    <li><strong>Equipment Design:</strong> Correct prediction of flow regime is essential for pumps, pipelines, and reactors.</li>
+    <li><strong>Operational Safety:</strong> Unstable flow regimes can lead to erosion, vibration, and operational hazards.</li>
+    </ul>
+    </div>
+    """, unsafe_allow_html=True)
+
 
     st.subheader("How the MTPINN Works")
     st.markdown("""
