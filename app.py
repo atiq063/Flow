@@ -268,6 +268,84 @@ def render_media_card(media_path, title, caption, card_class="media-card"):
     except Exception as e:
         st.warning(f"⚠️ Unable to render visualization card: {str(e)}")
 
+def render_video_card(
+    video_path,
+    title,
+    caption,
+    card_class="media-card",
+    loop=False,
+    autoplay=False,
+    muted=False,
+    fit="contain",
+    show_title=True,
+    show_caption=True,
+    controls=True,
+):
+    """Render a video inside a styled card."""
+    try:
+        with open(video_path, "rb") as f:
+            video_bytes = f.read()
+        video_b64 = base64.b64encode(video_bytes).decode("ascii")
+        fit_class = "video-fit-cover" if fit == "cover" else "video-fit-contain"
+        title_html = f'<div class="media-title">{title}</div>' if show_title else ""
+        caption_html = f'<div class="media-caption">{caption}</div>' if show_caption else ""
+        attrs = []
+        if controls:
+            attrs.append("controls")
+        if loop:
+            attrs.append("loop")
+        if autoplay:
+            attrs.append("autoplay")
+        if muted:
+            attrs.append("muted")
+        attrs.append("playsinline")
+        attr_str = " ".join(attrs)
+
+        html = (
+            f'<div class="{card_class}">'
+            f"{title_html}"
+            f'<video class="{fit_class}" {attr_str} preload="metadata">'
+            f'<source src="data:video/mp4;base64,{video_b64}" type="video/mp4">'
+            f"</video>"
+            f"{caption_html}"
+            f"</div>"
+        )
+        st.markdown(html, unsafe_allow_html=True)
+    except Exception as e:
+        st.warning(f"⚠️ Unable to render video card: {str(e)}")
+
+def build_video_tag(
+    video_path,
+    loop=False,
+    autoplay=False,
+    muted=False,
+    fit="contain",
+    controls=True,
+    extra_class="",
+):
+    """Build a raw HTML <video> tag string for inline layout."""
+    with open(video_path, "rb") as f:
+        video_bytes = f.read()
+    video_b64 = base64.b64encode(video_bytes).decode("ascii")
+    fit_class = "video-fit-cover" if fit == "cover" else "video-fit-contain"
+    classes = f"{fit_class} {extra_class}".strip()
+    attrs = []
+    if controls:
+        attrs.append("controls")
+    if loop:
+        attrs.append("loop")
+    if autoplay:
+        attrs.append("autoplay")
+    if muted:
+        attrs.append("muted")
+    attrs.append("playsinline")
+    attr_str = " ".join(attrs)
+    return (
+        f'<video class="{classes}" {attr_str} preload="metadata">'
+        f'<source src="data:video/mp4;base64,{video_b64}" type="video/mp4">'
+        f"</video>"
+    )
+
 def safe_divide(numerator, denominator):
     if denominator == 0:
         return np.nan
@@ -485,21 +563,21 @@ if "page" not in st.session_state:
 st.markdown("""
 <style>
     :root {
-        --hbku-maroon: #8a1538;
-        --hbku-maroon-dark: #6f0f2c;
-        --hbku-gold: #c6a15b;
-        --hbku-sand: #f7f3ee;
-        --hbku-ink: #1f1f24;
-        --hbku-slate: #4b5563;
-        --hbku-mist: #eef0f3;
+        --hbku-maroon: #1f4f9a;
+        --hbku-maroon-dark: #163c7a;
+        --hbku-gold: #6bb6e8;
+        --hbku-sand: #f3f7fb;
+        --hbku-ink: #0f172a;
+        --hbku-slate: #475569;
+        --hbku-mist: #e8eef6;
     }
 
     @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap');
 
     .stApp {
         background:
-            radial-gradient(1200px 600px at 15% -10%, rgba(198, 161, 91, 0.18), transparent 60%),
-            radial-gradient(900px 500px at 95% 10%, rgba(138, 21, 56, 0.12), transparent 55%),
+            radial-gradient(1200px 600px at 15% -10%, rgba(107, 182, 232, 0.18), transparent 60%),
+            radial-gradient(900px 500px at 95% 10%, rgba(31, 79, 154, 0.14), transparent 55%),
             var(--hbku-sand);
         color: var(--hbku-ink);
     }
@@ -636,6 +714,44 @@ st.markdown("""
         height: 380px;
         object-fit: contain;
         border-radius: 12px;
+    }
+
+    .media-card video {
+        width: 100%;
+        height: 320px;
+        border-radius: 12px;
+        background: #0f172a;
+        display: block;
+    }
+
+    .media-card video.video-fit-cover {
+        object-fit: cover;
+    }
+
+    .media-card video.video-fit-contain {
+        object-fit: contain;
+    }
+
+    .video-card {
+        min-height: 480px;
+    }
+
+    .video-card.full-bleed {
+        padding: 0;
+        overflow: hidden;
+    }
+
+    .video-card.full-bleed video {
+        height: 360px;
+        border-radius: 0;
+    }
+
+    .video-card.compact {
+        min-height: 240px;
+    }
+
+    .video-card.compact video {
+        height: 180px;
     }
 
     .gallery-card {
@@ -783,12 +899,49 @@ st.markdown("""
 
     .info-card {
         background:
-            linear-gradient(120deg, rgba(138, 21, 56, 0.95) 0%, rgba(198, 161, 91, 0.9) 100%);
+            linear-gradient(120deg, rgba(31, 79, 154, 0.95) 0%, rgba(107, 182, 232, 0.9) 100%);
         padding: 32px;
         border-radius: 18px;
-        box-shadow: 0 14px 28px rgba(138, 21, 56, 0.2);
+        box-shadow: 0 14px 28px rgba(31, 79, 154, 0.2);
         margin: 24px 0;
         color: #ffffff;
+        display: flex;
+        gap: 24px;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .info-card .info-content {
+        flex: 1 1 55%;
+        min-width: 240px;
+    }
+    .info-card .info-media {
+        flex: 1 1 45%;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        min-width: 240px;
+    }
+    .info-card .info-media video {
+        width: 100%;
+        max-width: 420px;
+        height: 240px;
+        border-radius: 16px;
+        background: #0f172a;
+        object-fit: contain;
+        display: block;
+    }
+    @media (max-width: 900px) {
+        .info-card {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .info-card .info-media {
+            justify-content: center;
+        }
+        .info-card .info-media video {
+            max-width: 100%;
+            height: 220px;
+        }
     }
     .card-title {
         font-size: 34px;
@@ -832,6 +985,14 @@ st.markdown("""
         box-shadow: 0 10px 18px rgba(31, 41, 55, 0.08);
     }
 
+    .hbku-brand img {
+        width: 100%;
+        height: auto;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        object-fit: contain;
+    }
+
     .hbku-brand .title {
         font-family: "Crimson Pro", "Times New Roman", serif;
         font-size: 1.35rem;
@@ -855,12 +1016,21 @@ st.markdown("""
 
 # --- Sidebar Navigation ---
 with st.sidebar:
+    hbku_logo_html = ""
+    try:
+        with open("assets/HBKU logo.jpg", "rb") as f:
+            logo_b64 = base64.b64encode(f.read()).decode("ascii")
+        hbku_logo_html = f'<img src="data:image/jpeg;base64,{logo_b64}" alt="HBKU Logo" />'
+    except Exception:
+        hbku_logo_html = ""
+
     st.markdown("""
     <div class="hbku-brand">
+        {logo_html}
         <div class="title">Hamad Bin Khalifa University</div>
         <div class="subtitle">Flow Regime Visual Twin</div>
     </div>
-    """, unsafe_allow_html=True)
+    """.format(logo_html=hbku_logo_html), unsafe_allow_html=True)
 
     st.markdown("### Navigation")
 
@@ -881,21 +1051,39 @@ page = st.session_state["page"]
 # ------------------------------------------------------------------------
 if page == "Home":
     st.title("MTPINN for Multiphase Flow Regime")
-    
-    st.markdown("""
-    <div class="info-card">
-        <div class="card-title">MTPINN</div>
-        <div class="card-subtitle">
-            Multi-Task Physics-Informed Neural Network for<br>
-            Advanced Flow Regime Classification
-        </div>
-        <div class="card-footer">
-            This research is led by Dr. Mohammad Azizur Rahman and Dr. Amith Khandakar
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
 
-    st.subheader("Flow Regime Gallery")
+    try:
+        intro_video_html = build_video_tag(
+            "assets/intro.mp4",
+            loop=True,
+            autoplay=True,
+            muted=True,
+            fit="contain",
+            controls=False,
+        )
+    except Exception as e:
+        intro_video_html = f'<div class="media-caption">⚠️ Unable to load intro video: {str(e)}</div>'
+
+    st.markdown(
+        (
+            '<div class="info-card">'
+            '<div class="info-content">'
+            '<div class="card-title">MTPINN</div>'
+            '<div class="card-subtitle">'
+            'Multi-Task Physics-Informed Neural Network for<br>'
+            'Advanced Flow Regime Classification'
+            '</div>'
+            '<div class="card-footer">'
+            'This research is led by Dr. Mohammad Azizur Rahman and Dr. Amith Khandakar'
+            '</div>'
+            '</div>'
+            f'<div class="info-media">{intro_video_html}</div>'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
+    )
+
+    st.subheader("Flow Regimes")
     st.markdown("""
     <div class="justified-text">
     Explore representative flow patterns captured from experiments. These short GIFs illustrate the visual
@@ -925,6 +1113,7 @@ if page == "Home":
             "Intermittent gas pockets with liquid slugs.",
             card_class="media-card gallery-card",
         )
+
     
     st.subheader("About Multiphase Flow Regime")
     st.markdown("""
@@ -966,7 +1155,17 @@ if page == "Home":
     col1, col2, col3 = st.columns([0.5, 3, 0.5])
     with col2:
         st.image("assets/Methodoloy-Fig.svg", caption="MTPINN Methodology and Architecture", width="stretch")
-
+    
+    st.markdown(
+        """
+        <p style="text-align: center; font-size: 0.9em; color: #999;">
+            <strong>Last Updated:</strong> Feburary 2026<br>
+            <strong>Version:</strong> 1.0<br>
+            © HBKU Research Team
+        </p>
+        """,
+        unsafe_allow_html=True,
+    )
 # ------------------------------------------------------------------------
 # 📊 EVALUATE MODEL PAGE
 # ------------------------------------------------------------------------
@@ -1482,10 +1681,15 @@ elif page == "Classify Flow Regime":
 # ------------------------------------------------------------------------
 elif page == "User Guideline":
     st.title("User Guideline")
+    st.subheader("How to Use the Flow Regime Classification System")
+    render_video_card(
+        "assets/user guide.mp4",
+        "User Guide Walkthrough",
+        "Step-by-step walkthrough of the flow regime classification workflow.",
+        card_class="media-card video-card",
+    )
     st.markdown("""
     <div class="justified-text">
-    <h3>How to Use the Flow Regime Classification System</h3>
-    
     <h4>Step 1: Prepare Your Data</h4>
     Ensure your dataset meets the following requirements:
     <ul>
@@ -1584,9 +1788,8 @@ elif page == "Privacy and Policy":
     </ul>
     
     <h4>Research and Academic Use</h4>
-    This application is developed for research and educational purposes at Qatar University under the leadership of:
+    This application is developed for research and educational purposes at Hamad Bin Khalifa University under the leadership of:
     <ul>
-    <li>Dr. Amith Khandakar</li>
     <li>Dr. Mohammad Azizur Rahman</li>
     </ul>
     
@@ -1625,7 +1828,7 @@ elif page == "Privacy and Policy":
     <h4>Contact and Support</h4>
     For questions, feedback, or research collaboration inquiries, please contact:
     <ul>
-    <li>Qatar University Research Team</li>
+    <li>HBKU's Research Team</li>
     </ul>
     
     <h4>Updates to This Policy</h4>
@@ -1637,9 +1840,9 @@ elif page == "Privacy and Policy":
     <hr>
     
     <p style="text-align: center; font-size: 0.9em; color: #999;">
-    <strong>Last Updated:</strong> November 2024<br>
+    <strong>Last Updated:</strong> Feburary 2026<br>
     <strong>Version:</strong> 1.0<br>
-    © Qatar University Research Team
+    © HBKU Research Team
     </p>
     
     </div>
