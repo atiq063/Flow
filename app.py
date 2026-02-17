@@ -1074,7 +1074,7 @@ if page == "Home":
             'Advanced Flow Regime Classification'
             '</div>'
             '<div class="card-footer">'
-            'This research is led by Dr. Mohammad Azizur Rahman and Dr. Amith Khandakar'
+            'This research is led by Dr. Mohammad Azizur Rahman'
             '</div>'
             '</div>'
             f'<div class="info-media">{intro_video_html}</div>'
