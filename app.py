@@ -1316,7 +1316,8 @@ elif page == "Classify Flow Regime":
                             "Gas mass flow rate",
                             min_value=0.0,
                             value=0.1,
-                            step=0.05
+                            step=0.05,
+                            format="%.4f"
                         )
                         t = labeled_number_input(
                             "T (K)",
