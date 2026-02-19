@@ -487,10 +487,11 @@ def compute_mass_flow_outputs(inputs):
     return outputs, u_sg, u_sl
 
 def compute_volume_flow_outputs(inputs):
-    q_l = inputs["q_l"]
-    q_g = inputs["q_g"]
-    u_sl_input = inputs["u_sl"]
-    u_sg_input = inputs["u_sg"]
+    q_l = inputs.get("q_l")
+    q_g = inputs.get("q_g")
+    u_sl_input = inputs.get("u_sl")
+    u_sg_input = inputs.get("u_sg")
+    use_superficial = inputs.get("use_superficial", False)
     p_in = inputs["p_in"]
     t = inputs["t"]
     z = inputs["z"]
@@ -504,6 +505,9 @@ def compute_volume_flow_outputs(inputs):
 
     area = np.pi * d**2 / 4
     rho_g = safe_divide(p_in, z * r_g * t)
+    if use_superficial:
+        q_l = (u_sl_input or 0.0) * area
+        q_g = (u_sg_input or 0.0) * area
     u_sl = safe_divide(q_l, area)
     u_sg = safe_divide(q_g, area)
     mdot_l = rho_l * q_l
@@ -976,6 +980,42 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
+    .doc-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #ffffff;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 12px;
+        overflow: hidden;
+        margin: 12px 0 24px 0;
+        box-shadow: 0 10px 18px rgba(31, 41, 55, 0.06);
+    }
+
+    .doc-table th,
+    .doc-table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+        font-size: 0.96rem;
+        color: var(--hbku-slate);
+    }
+
+    .doc-table th {
+        text-align: left;
+        background: var(--hbku-mist);
+        color: var(--hbku-ink);
+        font-weight: 600;
+    }
+
+    .doc-callout {
+        background: #ffffff;
+        border: 1px solid rgba(31, 79, 154, 0.16);
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin: 10px 0 18px 0;
+        color: var(--hbku-slate);
+        box-shadow: 0 8px 16px rgba(31, 41, 55, 0.06);
+    }
+
     .hbku-brand {
         background: #ffffff;
         border-radius: 14px;
@@ -1040,6 +1080,8 @@ with st.sidebar:
         st.session_state["page"] = "Classify Flow Regime"
     if st.button("User Guideline", width="stretch"):
         st.session_state["page"] = "User Guideline"
+    if st.button("Documentation", width="stretch"):
+        st.session_state["page"] = "Documentation"
     if st.button("Privacy and Policy", width="stretch"):
         st.session_state["page"] = "Privacy and Policy"
 
@@ -1074,7 +1116,7 @@ if page == "Home":
             'Advanced Flow Regime Classification'
             '</div>'
             '<div class="card-footer">'
-            'This research is led by Dr. Mohammad Azizur Rahman'
+            'This research is led by Dr. Mohammad Azizur Rahman and Dr. Amith Khandakar'
             '</div>'
             '</div>'
             f'<div class="info-media">{intro_video_html}</div>'
@@ -1282,7 +1324,8 @@ elif page == "Classify Flow Regime":
                             "Liquid mass flow rate",
                             min_value=0.0,
                             value=0.5,
-                            step=0.1
+                            step=0.1,
+                            format="%.4f"
                         )
                         p_in = labeled_number_input(
                             "P<sub>in</sub> (Pa)",
@@ -1372,26 +1415,37 @@ elif page == "Classify Flow Regime":
                     default_q_l = default_u_sl * default_area
                     default_q_g = default_u_sg * default_area
 
-                    st.caption("U_sl and U_sg are used as reference checks. Computations use q_L and q_G.")
+                    volume_mode = st.radio(
+                        "Choose input type",
+                        ["Enter Volumetric Flow rate", "Enter Superficial Velocities"],
+                        horizontal=True
+                    )
+                    st.caption("Computed values use your selected input type.")
+                    q_l = None
+                    q_g = None
+                    u_sl = None
+                    u_sg = None
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        q_l = labeled_number_input(
-                            "q<sub>L</sub> (m&sup3;/s)",
-                            "q_L (m^3/s)",
-                            "Liquid volumetric flow rate",
-                            min_value=0.0,
-                            value=default_q_l,
-                            step=1e-4,
-                            format="%.6f"
-                        )
-                        u_sl = labeled_number_input(
-                            "U<sub>sl</sub> (m/s)",
-                            "U_sl (m/s)",
-                            "Superficial liquid velocity",
-                            min_value=0.0,
-                            value=default_u_sl,
-                            step=0.05
-                        )
+                        if volume_mode == "Enter Volumetric Flow rate":
+                            q_l = labeled_number_input(
+                                "q<sub>L</sub> (m&sup3;/s)",
+                                "q_L (m^3/s)",
+                                "Liquid volumetric flow rate",
+                                min_value=0.0,
+                                value=default_q_l,
+                                step=1e-4,
+                                format="%.6f"
+                            )
+                        else:
+                            u_sl = labeled_number_input(
+                                "U<sub>sl</sub> (m/s)",
+                                "U_sl (m/s)",
+                                "Superficial liquid velocity",
+                                min_value=0.0,
+                                value=default_u_sl,
+                                step=0.05
+                            )
                         p_in = labeled_number_input(
                             "P<sub>in</sub> (Pa)",
                             "P_in (Pa)",
@@ -1409,23 +1463,25 @@ elif page == "Classify Flow Regime":
                             step=10.0
                         )
                     with col2:
-                        q_g = labeled_number_input(
-                            "q<sub>G</sub> (m&sup3;/s)",
-                            "q_G (m^3/s)",
-                            "Gas volumetric flow rate",
-                            min_value=0.0,
-                            value=default_q_g,
-                            step=1e-4,
-                            format="%.6f"
-                        )
-                        u_sg = labeled_number_input(
-                            "U<sub>sg</sub> (m/s)",
-                            "U_sg (m/s)",
-                            "Superficial gas velocity",
-                            min_value=0.0,
-                            value=default_u_sg,
-                            step=0.05
-                        )
+                        if volume_mode == "Enter Volumetric Flow rate":
+                            q_g = labeled_number_input(
+                                "q<sub>G</sub> (m&sup3;/s)",
+                                "q_G (m^3/s)",
+                                "Gas volumetric flow rate",
+                                min_value=0.0,
+                                value=default_q_g,
+                                step=1e-4,
+                                format="%.6f"
+                            )
+                        else:
+                            u_sg = labeled_number_input(
+                                "U<sub>sg</sub> (m/s)",
+                                "U_sg (m/s)",
+                                "Superficial gas velocity",
+                                min_value=0.0,
+                                value=default_u_sg,
+                                step=0.05
+                            )
                         t = labeled_number_input(
                             "T (K)",
                             "T (K)",
@@ -1480,7 +1536,7 @@ elif page == "Classify Flow Regime":
                             disabled=True
                         )
 
-                    use_phase_velocities = st.checkbox("Provide u_L and u_G (optional)", value=False)
+                    use_phase_velocities = st.checkbox("Provide phase velocities (optional)", value=False)
                     u_l = None
                     u_g = None
                     if use_phase_velocities:
@@ -1563,11 +1619,13 @@ elif page == "Classify Flow Regime":
                             }
                             derived_outputs, vsg_input, vsl_input = compute_mass_flow_outputs(mass_inputs)
                         elif input_mode == "Volume flow rates":
+                            use_superficial = volume_mode == "Enter Superficial Velocities"
                             volume_inputs = {
                                 "q_l": q_l,
                                 "q_g": q_g,
                                 "u_sl": u_sl,
                                 "u_sg": u_sg,
+                                "use_superficial": use_superficial,
                                 "p_in": p_in,
                                 "t": t,
                                 "z": z,
@@ -1582,9 +1640,9 @@ elif page == "Classify Flow Regime":
                             derived_outputs, u_sl_input, u_sg_input, u_sl_calc, u_sg_calc, vsg_input, vsl_input = compute_volume_flow_outputs(volume_inputs)
 
                             tolerance = 0.05
-                            if u_sl_input > 0 and abs(u_sl_input - u_sl_calc) > tolerance * max(abs(u_sl_calc), 1e-9):
+                            if (not use_superficial) and u_sl_input is not None and u_sl_input > 0 and abs(u_sl_input - u_sl_calc) > tolerance * max(abs(u_sl_calc), 1e-9):
                                 st.warning("U_sl input does not match q_L / A. Outputs use q_L and q_G.")
-                            if u_sg_input > 0 and abs(u_sg_input - u_sg_calc) > tolerance * max(abs(u_sg_calc), 1e-9):
+                            if (not use_superficial) and u_sg_input is not None and u_sg_input > 0 and abs(u_sg_input - u_sg_calc) > tolerance * max(abs(u_sg_calc), 1e-9):
                                 st.warning("U_sg input does not match q_G / A. Outputs use q_L and q_G.")
                         else:
                             derived_outputs = []
@@ -1751,6 +1809,130 @@ elif page == "User Guideline":
     """, unsafe_allow_html=True)
 
 
+# ------------------------------------------------------------------------
+# 📘 DOCUMENTATION PAGE
+# ------------------------------------------------------------------------
+elif page == "Documentation":
+    st.title("Documentation")
+    st.subheader("Derived Output Calculations")
+
+    st.markdown("""
+    <div class="justified-text">
+    This page documents how the derived outputs are computed from user inputs for air-water two-phase pipe flow.
+    Two primary workflows are supported:
+    (A) convert known mass flow rates to volumetric flow rates, and
+    (B) convert known volumetric flow rates to mass flow rates.
+    Optional steps are included if in-situ phase velocities are available.
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### Symbols and Units")
+    st.markdown("""
+    <table class="doc-table">
+        <thead>
+            <tr>
+                <th>Symbol</th>
+                <th>Description</th>
+                <th>Units</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>m&#775;<sub>L</sub></td><td>Liquid mass flow rate</td><td>kg/s</td></tr>
+            <tr><td>m&#775;<sub>G</sub></td><td>Gas mass flow rate</td><td>kg/s</td></tr>
+            <tr><td>q<sub>L</sub></td><td>Liquid volumetric flow rate</td><td>m^3/s</td></tr>
+            <tr><td>q<sub>G</sub></td><td>Gas volumetric flow rate</td><td>m^3/s</td></tr>
+            <tr><td>P<sub>in</sub></td><td>Inlet absolute pressure</td><td>Pa</td></tr>
+            <tr><td>T</td><td>Inlet temperature</td><td>K</td></tr>
+            <tr><td>Z</td><td>Gas compressibility factor</td><td>-</td></tr>
+            <tr><td>R<sub>g</sub></td><td>Specific gas constant (air)</td><td>J kg<sup>-1</sup> K<sup>-1</sup></td></tr>
+            <tr><td>&rho;<sub>L</sub></td><td>Liquid density</td><td>kg/m^3</td></tr>
+            <tr><td>&rho;<sub>G</sub></td><td>Gas density</td><td>kg/m^3</td></tr>
+            <tr><td>&mu;<sub>L</sub></td><td>Liquid viscosity</td><td>Pa s</td></tr>
+            <tr><td>&mu;<sub>G</sub></td><td>Gas viscosity</td><td>Pa s</td></tr>
+            <tr><td>D</td><td>Pipe inner diameter</td><td>m</td></tr>
+            <tr><td>A</td><td>Pipe cross-sectional area</td><td>m^2</td></tr>
+            <tr><td>U<sub>sl</sub></td><td>Liquid superficial velocity</td><td>m/s</td></tr>
+            <tr><td>U<sub>sg</sub></td><td>Gas superficial velocity</td><td>m/s</td></tr>
+            <tr><td>U<sub>m</sub></td><td>Mixture superficial velocity</td><td>m/s</td></tr>
+            <tr><td>u<sub>L</sub></td><td>Actual (in-situ) liquid velocity</td><td>m/s</td></tr>
+            <tr><td>u<sub>G</sub></td><td>Actual (in-situ) gas velocity</td><td>m/s</td></tr>
+            <tr><td>&alpha;<sub>in</sub></td><td>Inlet void fraction</td><td>-</td></tr>
+            <tr><td>&rho;<sub>m</sub></td><td>Mixture density</td><td>kg/m^3</td></tr>
+            <tr><td>&mu;<sub>m</sub></td><td>Mixture viscosity</td><td>Pa s</td></tr>
+            <tr><td>Re<sub>m</sub></td><td>Mixture Reynolds number</td><td>-</td></tr>
+            <tr><td>S</td><td>Slip ratio</td><td>-</td></tr>
+        </tbody>
+    </table>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### Common Setup (applies to both workflows)")
+    st.markdown('<div class="doc-callout">Step 0: Compute the pipe cross-sectional area from the diameter.</div>', unsafe_allow_html=True)
+    st.latex(r"A = \frac{\pi D^2}{4}")
+    st.markdown('<div class="doc-callout">Step 0b: Compute gas density at inlet conditions using the ideal-gas relation (with compressibility factor).</div>', unsafe_allow_html=True)
+    st.latex(r"\rho_G = \frac{P_{in}}{Z R_g T}")
+
+    st.markdown("### Workflow A: Mass Flow Rates Known → Volume Flow Rates")
+    st.markdown('<div class="doc-callout">Step A1: Convert liquid mass flow to liquid volume flow.</div>', unsafe_allow_html=True)
+    st.latex(r"q_L = \frac{\dot{m}_L}{\rho_L}")
+    st.markdown('<div class="doc-callout">Step A2: Convert gas mass flow to gas volume flow.</div>', unsafe_allow_html=True)
+    st.latex(r"q_G = \frac{\dot{m}_G}{\rho_G}")
+    st.markdown('<div class="doc-callout">Step A3: Total inlet volumetric flow.</div>', unsafe_allow_html=True)
+    st.latex(r"q_T = q_L + q_G")
+    st.markdown('<div class="doc-callout">Step A4: Inlet void fraction from flow rates.</div>', unsafe_allow_html=True)
+    st.latex(r"\alpha_{in} = \frac{q_G}{q_L + q_G}")
+    st.markdown('<div class="doc-callout">Step A5: Liquid superficial velocity.</div>', unsafe_allow_html=True)
+    st.latex(r"U_{sl} = \frac{q_L}{A}")
+    st.markdown('<div class="doc-callout">Step A6: Gas superficial velocity.</div>', unsafe_allow_html=True)
+    st.latex(r"U_{sg} = \frac{q_G}{A}")
+    st.markdown('<div class="doc-callout">Step A7: Mixture superficial velocity.</div>', unsafe_allow_html=True)
+    st.latex(r"U_m = U_{sl} + U_{sg}")
+    st.markdown('<div class="doc-callout">Step A8: Mixture density (homogeneous model).</div>', unsafe_allow_html=True)
+    st.latex(r"\rho_m = \alpha_{in}\rho_G + (1 - \alpha_{in})\rho_L")
+    st.markdown('<div class="doc-callout">Step A9: Mixture viscosity (linear mixing rule).</div>', unsafe_allow_html=True)
+    st.latex(r"\mu_m = \alpha_{in}\mu_G + (1 - \alpha_{in})\mu_L")
+    st.markdown('<div class="doc-callout">Step A10: Mixture Reynolds number.</div>', unsafe_allow_html=True)
+    st.latex(r"Re_m = \frac{\rho_m U_m D}{\mu_m}")
+
+    st.markdown("### Workflow B: Volume Flow Rates Known → Mass Flow Rates")
+    st.markdown('<div class="doc-callout">Step B1: Convert liquid volume flow to liquid mass flow.</div>', unsafe_allow_html=True)
+    st.latex(r"\dot{m}_L = \rho_L q_L")
+    st.markdown('<div class="doc-callout">Step B2: Convert gas volume flow to gas mass flow.</div>', unsafe_allow_html=True)
+    st.latex(r"\dot{m}_G = \rho_G q_G")
+    st.markdown("""
+    <div class="doc-callout">
+    Step B3: After obtaining mass flow rates, compute void fraction, superficial velocities, mixture properties,
+    and Reynolds number using Steps A3 to A10.
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### Optional Branch: In-situ Velocities Provided")
+    st.markdown('<div class="doc-callout">Optional Step O1: Liquid occupied area from true liquid velocity.</div>', unsafe_allow_html=True)
+    st.latex(r"A_L = \frac{q_L}{u_L}")
+    st.markdown('<div class="doc-callout">Optional Step O2: Gas occupied area from true gas velocity.</div>', unsafe_allow_html=True)
+    st.latex(r"A_G = \frac{q_G}{u_G}")
+    st.markdown('<div class="doc-callout">Optional Step O3: Inlet void fraction from phase areas.</div>', unsafe_allow_html=True)
+    st.latex(r"\alpha_{in} = \frac{A_G}{A_G + A_L}")
+    st.markdown('<div class="doc-callout">Optional Step O4: Slip ratio.</div>', unsafe_allow_html=True)
+    st.latex(r"S = \frac{u_G}{u_L}")
+
+    st.markdown("### Fallback Rule (when in-situ velocities are not provided)")
+    st.markdown("""
+    <div class="doc-callout">
+    If in-situ velocities are unavailable, use superficial velocities based on total pipe area. If superficial
+    velocities are given, the following conversions apply:
+    </div>
+    """, unsafe_allow_html=True)
+    st.latex(r"q_L = U_{sl} A")
+    st.latex(r"q_G = U_{sg} A")
+    st.latex(r"\dot{m}_L = \rho_L U_{sl} A")
+    st.latex(r"\dot{m}_G = \rho_G U_{sg} A")
+
+    st.markdown("### Schematics")
+    st.markdown("""
+    """, unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([0.5, 3, 0.5])
+    with col2:
+        st.image("assets/Sche.png", caption="Workflow Schematics for the derived outputs", width="stretch")
 # ------------------------------------------------------------------------
 # 🔒 PRIVACY AND POLICY PAGE
 # ------------------------------------------------------------------------
