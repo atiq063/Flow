@@ -1281,28 +1281,6 @@ elif page == "Classify Flow Regime":
                     plt.tight_layout()
                     st.pyplot(fig)
 
-                    # Correlation heatmap if multiple numeric columns
-                    plot_cols = [col for col in numeric_cols if col != time_col]
-                    if len(plot_cols) >= 2:
-                        st.markdown("**Correlation Between Features:**")
-                        corr = df[plot_cols[:5]].corr()
-                        fig2, ax2 = plt.subplots(figsize=(6, 5))
-                        cax = ax2.matshow(corr, cmap="coolwarm", vmin=-1, vmax=1)
-                        fig2.colorbar(cax)
-                        ax2.set_xticks(range(len(corr.columns)))
-                        ax2.set_yticks(range(len(corr.columns)))
-                        ax2.set_xticklabels(corr.columns, rotation=45, ha="left", fontsize=9)
-                        ax2.set_yticklabels(corr.columns, fontsize=9)
-                        ax2.set_title("Feature Correlation Heatmap", pad=20, fontsize=12)
-                        
-                        for i in range(len(corr.columns)):
-                            for j in range(len(corr.columns)):
-                                ax2.text(j, i, f'{corr.iloc[i, j]:.2f}', 
-                                        ha='center', va='center', color='black', fontsize=8)
-                        
-                        plt.tight_layout()
-                        st.pyplot(fig2)
-
             if pressure_col is None:
                 st.error("❌ No 'Pressure' column found in the dataset. Please ensure your file contains a pressure column.")
             else:
