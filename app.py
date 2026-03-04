@@ -574,6 +574,7 @@ st.markdown("""
         --hbku-ink: #0f172a;
         --hbku-slate: #475569;
         --hbku-mist: #e8eef6;
+        --base-font-size: 20px;
     }
 
     @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap');
