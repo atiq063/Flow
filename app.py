@@ -589,6 +589,7 @@ st.markdown("""
 
     html, body, [class*="css"] {
         font-family: "Source Sans 3", "Segoe UI", Helvetica, Arial, sans-serif;
+        font-size: var(--base-font-size);
     }
 
     .block-container {
@@ -609,7 +610,7 @@ st.markdown("""
 
     .stMarkdown, p, li {
         color: var(--hbku-slate);
-        font-size: 1rem;
+        font-size: 1.05rem;
     }
 
     h1, h2, h3 {
@@ -667,12 +668,12 @@ st.markdown("""
 
     .input-label {
         color: var(--hbku-slate);
-        font-size: 0.95rem;
+        font-size: 1rem;
         margin-bottom: 6px;
     }
     .input-desc {
         color: var(--hbku-slate);
-        font-size: 0.78rem;
+        font-size: 0.85rem;
         margin-top: -2px;
         margin-bottom: 8px;
         opacity: 0.85;
@@ -697,7 +698,7 @@ st.markdown("""
 
     .cta-subtitle {
         color: var(--hbku-slate);
-        font-size: 1rem;
+        font-size: 1.05rem;
     }
 
     .media-card {
@@ -777,7 +778,7 @@ st.markdown("""
 
     .media-caption {
         color: var(--hbku-slate);
-        font-size: 0.95rem;
+        font-size: 1rem;
         margin-top: 10px;
     }
 
@@ -804,7 +805,7 @@ st.markdown("""
     .derived-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.92rem;
+        font-size: 0.98rem;
         margin-bottom: 4px;
     }
 
@@ -828,7 +829,7 @@ st.markdown("""
     }
     .param-desc {
         color: var(--hbku-slate);
-        font-size: 0.75rem;
+        font-size: 0.82rem;
         margin-top: 2px;
         opacity: 0.8;
     }
@@ -854,7 +855,7 @@ st.markdown("""
 
     .metric-label {
         color: var(--hbku-slate);
-        font-size: 0.85rem;
+        font-size: 0.9rem;
     }
 
     .metric-value {
@@ -866,7 +867,7 @@ st.markdown("""
 
     .metric-delta {
         color: var(--hbku-slate);
-        font-size: 0.8rem;
+        font-size: 0.85rem;
         margin-top: 2px;
     }
 
@@ -955,13 +956,13 @@ st.markdown("""
         text-align: center;
     }
     .card-subtitle {
-        font-size: 18px;
+        font-size: 19px;
         margin-bottom: 20px;
         text-align: center;
         opacity: 0.95;
     }
     .card-footer {
-        font-size: 14px;
+        font-size: 15px;
         text-align: center;
         margin-top: 15px;
         padding-top: 15px;
@@ -996,7 +997,7 @@ st.markdown("""
     .doc-table td {
         padding: 10px 12px;
         border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-        font-size: 0.96rem;
+        font-size: 1rem;
         color: var(--hbku-slate);
     }
 
@@ -1014,6 +1015,7 @@ st.markdown("""
         padding: 14px 16px;
         margin: 10px 0 18px 0;
         color: var(--hbku-slate);
+        font-size: 1rem;
         box-shadow: 0 8px 16px rgba(31, 41, 55, 0.06);
     }
 
@@ -1043,7 +1045,7 @@ st.markdown("""
     }
 
     .hbku-brand .subtitle {
-        font-size: 0.95rem;
+        font-size: 1rem;
         color: var(--hbku-slate);
     }
 
